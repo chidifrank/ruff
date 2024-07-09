@@ -618,6 +618,9 @@ pub fn code_to_rule(linter: Linter, code: &str) -> Option<(RuleGroup, Rule)> {
         (PandasVet, "101") => (RuleGroup::Unspecified, rules::pandas_vet::rules::PandasNuniqueConstantSeriesCheck),
         (PandasVet, "901") => (RuleGroup::Unspecified, rules::pandas_vet::rules::PandasDfVariableName),
 
+        // pyspark
+        (PySpark, "001") => (RuleGroup::Unspecified, rules::pyspark::rules::SparkComplexStructure),
+
         // flake8-errmsg
         (Flake8ErrMsg, "101") => (RuleGroup::Unspecified, rules::flake8_errmsg::rules::RawStringInException),
         (Flake8ErrMsg, "102") => (RuleGroup::Unspecified, rules::flake8_errmsg::rules::FStringInException),

@@ -20,7 +20,7 @@ use crate::rules::{
     flake8_copyright, flake8_errmsg, flake8_gettext, flake8_implicit_str_concat,
     flake8_import_conventions, flake8_pytest_style, flake8_quotes, flake8_self,
     flake8_tidy_imports, flake8_type_checking, flake8_unused_arguments, isort, mccabe, pep8_naming,
-    pycodestyle, pydocstyle, pyflakes, pylint, pyupgrade,
+    pycodestyle, pydocstyle, pyflakes, pylint, pyspark, pyupgrade,
 };
 use crate::settings::configuration::Configuration;
 use crate::settings::types::{FilePatternSet, PerFileIgnore, PythonVersion, SerializationFormat};
@@ -126,6 +126,7 @@ pub struct Settings {
     pub flake8_unused_arguments: flake8_unused_arguments::settings::Settings,
     pub isort: isort::settings::Settings,
     pub mccabe: mccabe::settings::Settings,
+    pub pyspark: pyspark::settings::Settings,
     pub pep8_naming: pep8_naming::settings::Settings,
     pub pycodestyle: pycodestyle::settings::Settings,
     pub pydocstyle: pydocstyle::settings::Settings,
@@ -267,6 +268,10 @@ impl Settings {
             mccabe: config
                 .mccabe
                 .map(mccabe::settings::Settings::from)
+                .unwrap_or_default(),
+            pyspark: config
+                .pyspark
+                .map(pyspark::settings::Settings::from)
                 .unwrap_or_default(),
             pep8_naming: config
                 .pep8_naming

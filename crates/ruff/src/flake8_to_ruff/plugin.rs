@@ -40,6 +40,7 @@ pub enum Plugin {
     McCabe,
     PEP8Naming,
     PandasVet,
+    PySpark,
     Pyupgrade,
     Tryceratops,
 }
@@ -80,6 +81,7 @@ impl FromStr for Plugin {
             "mccabe" => Ok(Plugin::McCabe),
             "pep8-naming" => Ok(Plugin::PEP8Naming),
             "pandas-vet" => Ok(Plugin::PandasVet),
+            "pyspark" => Ok(Plugin::PySpark),
             "pyupgrade" => Ok(Plugin::Pyupgrade),
             "tryceratops" => Ok(Plugin::Tryceratops),
             _ => Err(anyhow!("Unknown plugin: {string}")),
@@ -124,6 +126,7 @@ impl fmt::Debug for Plugin {
                 Plugin::McCabe => "mccabe",
                 Plugin::PEP8Naming => "pep8-naming",
                 Plugin::PandasVet => "pandas-vet",
+                Plugin::PySpark => "pyspark",
                 Plugin::Pyupgrade => "pyupgrade",
                 Plugin::Tryceratops => "tryceratops",
             }
@@ -165,6 +168,7 @@ impl From<&Plugin> for Linter {
             Plugin::McCabe => Linter::McCabe,
             Plugin::PEP8Naming => Linter::PEP8Naming,
             Plugin::PandasVet => Linter::PandasVet,
+            Plugin::PySpark => Linter::PySpark,
             Plugin::Pyupgrade => Linter::Pyupgrade,
             Plugin::Tryceratops => Linter::Tryceratops,
         }
@@ -326,6 +330,7 @@ pub(crate) fn infer_plugins_from_codes(selectors: &HashSet<RuleSelector>) -> Vec
         Plugin::McCabe,
         Plugin::PEP8Naming,
         Plugin::PandasVet,
+        Plugin::PySpark,
         Plugin::Tryceratops,
     ]
     .into_iter()

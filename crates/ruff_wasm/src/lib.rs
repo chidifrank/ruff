@@ -16,7 +16,7 @@ use ruff::rules::{
     flake8_copyright, flake8_errmsg, flake8_gettext, flake8_implicit_str_concat,
     flake8_import_conventions, flake8_pytest_style, flake8_quotes, flake8_self,
     flake8_tidy_imports, flake8_type_checking, flake8_unused_arguments, isort, mccabe, pep8_naming,
-    pycodestyle, pydocstyle, pyflakes, pylint, pyupgrade,
+    pycodestyle, pydocstyle, pyflakes, pylint, pyspark, pyupgrade,
 };
 use ruff::settings::configuration::Configuration;
 use ruff::settings::options::Options;
@@ -188,6 +188,7 @@ impl Workspace {
             ),
             isort: Some(isort::settings::Settings::default().into()),
             mccabe: Some(mccabe::settings::Settings::default().into()),
+            pyspark: Some(pyspark::settings::Settings::default().into()),
             pep8_naming: Some(pep8_naming::settings::Settings::default().into()),
             pycodestyle: Some(pycodestyle::settings::Settings::default().into()),
             pydocstyle: Some(pydocstyle::settings::Settings::default().into()),

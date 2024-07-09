@@ -20,7 +20,7 @@ use crate::rules::{
     flake8_copyright, flake8_errmsg, flake8_gettext, flake8_implicit_str_concat,
     flake8_import_conventions, flake8_pytest_style, flake8_quotes, flake8_self,
     flake8_tidy_imports, flake8_type_checking, flake8_unused_arguments, isort, mccabe, pep8_naming,
-    pycodestyle, pydocstyle, pyflakes, pylint, pyupgrade,
+    pycodestyle, pydocstyle, pyflakes, pylint, pyspark, pyupgrade,
 };
 use crate::settings::options::Options;
 use crate::settings::types::{
@@ -89,6 +89,7 @@ pub struct Configuration {
     pub flake8_unused_arguments: Option<flake8_unused_arguments::settings::Options>,
     pub isort: Option<isort::settings::Options>,
     pub mccabe: Option<mccabe::settings::Options>,
+    pub pyspark: Option<pyspark::settings::Options>,
     pub pep8_naming: Option<pep8_naming::settings::Options>,
     pub pycodestyle: Option<pycodestyle::settings::Options>,
     pub pydocstyle: Option<pydocstyle::settings::Options>,
@@ -245,6 +246,7 @@ impl Configuration {
             flake8_unused_arguments: options.flake8_unused_arguments,
             isort: options.isort,
             mccabe: options.mccabe,
+            pyspark: options.pyspark,
             pep8_naming: options.pep8_naming,
             pycodestyle: options.pycodestyle,
             pydocstyle: options.pydocstyle,
@@ -334,6 +336,7 @@ impl Configuration {
                 .combine(config.flake8_unused_arguments),
             isort: self.isort.combine(config.isort),
             mccabe: self.mccabe.combine(config.mccabe),
+            pyspark: self.pyspark.combine(config.pyspark),
             pep8_naming: self.pep8_naming.combine(config.pep8_naming),
             pycodestyle: self.pycodestyle.combine(config.pycodestyle),
             pydocstyle: self.pydocstyle.combine(config.pydocstyle),

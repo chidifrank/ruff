@@ -1,0 +1,11 @@
+---
+source: crates/ruff/src/rules/pyspark/mod.rs
+---
+PS001.py:4:21: PS001 when() is too complex (5 > 3)
+  |
+3 | # Complexity = 5
+4 | in_service_filter = F.when( (F.col('prod_status') == 'Delivered')
+  |                     ^^^^^^ PS001
+5 |                                 | (((F.datediff('deliveryDate_actual', 'current_date') < 0)
+6 |                                   & ((F.col('currentRegistration') != '')
+  |

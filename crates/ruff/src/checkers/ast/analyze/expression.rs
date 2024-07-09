@@ -15,7 +15,7 @@ use crate::rules::{
     flake8_future_annotations, flake8_gettext, flake8_implicit_str_concat, flake8_logging_format,
     flake8_pie, flake8_print, flake8_pyi, flake8_pytest_style, flake8_self, flake8_simplify,
     flake8_tidy_imports, flake8_use_pathlib, flynt, numpy, pandas_vet, pep8_naming, pycodestyle,
-    pyflakes, pygrep_hooks, pylint, pyupgrade, ruff,
+    pyflakes, pygrep_hooks, pylint, pyspark, pyupgrade, ruff,
 };
 use crate::settings::types::PythonVersion;
 
@@ -695,6 +695,13 @@ pub(crate) fn expression(expr: &Expr, checker: &mut Checker) {
             }
             if checker.enabled(Rule::PandasUseOfPdMerge) {
                 pandas_vet::rules::use_of_pd_merge(checker, func);
+            }
+            if checker.enabled(Rule::SparkComplexStructure) {
+                pyspark::rules::operations_are_too_complex(
+                    checker,
+                    call,
+                    checker.settings.pyspark.max_complexity,
+                );
             }
             if checker.enabled(Rule::CallDatetimeWithoutTzinfo) {
                 flake8_datetimez::rules::call_datetime_without_tzinfo(checker, call);

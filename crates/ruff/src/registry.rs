@@ -175,6 +175,9 @@ pub enum Linter {
     /// [pandas-vet](https://pypi.org/project/pandas-vet/)
     #[prefix = "PD"]
     PandasVet,
+    /// [pyspark-lint](https://pypi.org/project/pyspark-lint/)
+    #[prefix = "PS"]
+    PySpark,
     /// [pygrep-hooks](https://github.com/pre-commit/pygrep-hooks)
     #[prefix = "PGH"]
     PygrepHooks,

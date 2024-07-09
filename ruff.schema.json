@@ -485,6 +485,17 @@
         }
       ]
     },
+    "pyspark": {
+      "description": "Options for the `pyspark` plugin",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/PySparkOptions"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "pyupgrade": {
       "description": "Options for the `pyupgrade` plugin.",
       "anyOf": [
@@ -1474,6 +1485,21 @@
       },
       "additionalProperties": false
     },
+    "PySparkOptions": {
+      "type": "object",
+      "properties": {
+        "max-complexity": {
+          "description": "The maximum PySpark transformation complexity to allow before triggering `PS001.py` errors.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
     "PyUpgradeOptions": {
       "type": "object",
       "properties": {
@@ -2314,6 +2340,10 @@
         "PLW33",
         "PLW330",
         "PLW3301",
+        "PS",
+        "PS0",
+        "PS00",
+        "PS001",
         "PT",
         "PT0",
         "PT00",
