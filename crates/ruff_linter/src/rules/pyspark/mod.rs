@@ -10,7 +10,7 @@ mod tests {
 
     use crate::assert_messages;
     use crate::registry::Rule;
-    use crate::settings::Settings;
+    use crate::settings::LinterSettings;
     use crate::test::test_path;
 
     #[test_case(0)]
@@ -21,9 +21,9 @@ mod tests {
 
         let diagnostics = test_path(
             Path::new("pyspark/PS001.py"),
-            &Settings {
+            &LinterSettings {
                 pyspark: super::settings::Settings { max_complexity },
-                ..Settings::for_rules(vec![Rule::SparkComplexStructure])
+                ..LinterSettings::for_rules(vec![Rule::SparkComplexStructure])
             },
         )?;
 

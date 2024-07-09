@@ -1,7 +1,8 @@
 use crate::checkers::ast::Checker;
 use ruff_diagnostics::{Diagnostic, Violation};
 use ruff_macros::{derive_message_formats, violation};
-use ruff_python_ast::{self as ast, Expr, ExprCall, Ranged};
+use ruff_python_ast::{self as ast, Expr, ExprCall};
+use ruff_text_size::Ranged;
 
 /// ## What it does
 /// Checks for pyspark operations using .when() that are too complex.
@@ -89,10 +90,10 @@ fn get_binary_op_expr_complexity(expr: &Expr, checker: &Checker) -> usize {
 fn is_pyspark_function_when_call(func: &Expr, checker: &Checker) -> bool {
     checker
         .semantic()
-        .resolve_call_path(func)
-        .is_some_and(|call_path| {
+        .resolve_qualified_name(func)
+        .is_some_and(|qualified_name| {
             matches!(
-                call_path.as_slice(),
+                qualified_name.segments(),
                 ["pyspark", "sql", "functions", "when"]
             )
         })
