@@ -4,11 +4,12 @@ use std::ops::Add;
 
 use memchr::{memchr2, memrchr2};
 use once_cell::unsync::OnceCell;
-use ruff_text_size::{TextLen, TextRange, TextSize};
+use ruff_text_size::{Ranged, TextLen, TextRange, TextSize};
 
 use crate::newlines::find_newline;
 use crate::{LineIndex, OneIndexed, SourceCode, SourceLocation};
 
+#[derive(Debug)]
 pub struct Locator<'a> {
     contents: &'a str,
     index: OnceCell<LineIndex>,
@@ -19,6 +20,13 @@ impl<'a> Locator<'a> {
         Self {
             contents,
             index: OnceCell::new(),
+        }
+    }
+
+    pub const fn with_index(contents: &'a str, index: LineIndex) -> Self {
+        Self {
+            contents,
+            index: OnceCell::with_value(index),
         }
     }
 
@@ -76,7 +84,15 @@ impl<'a> Locator<'a> {
         if let Some(index) = memrchr2(b'\n', b'\r', bytes) {
             // SAFETY: Safe because `index < offset`
             TextSize::try_from(index).unwrap().add(TextSize::from(1))
-        } else if self.contents.starts_with('\u{feff}') {
+        } else {
+            self.contents_start()
+        }
+    }
+
+    /// Computes the start position of the file contents: either the first byte, or the byte after
+    /// the BOM.
+    pub fn contents_start(&self) -> TextSize {
+        if self.contents.starts_with('\u{feff}') {
             // Skip the BOM.
             '\u{feff}'.text_len()
         } else {
@@ -85,9 +101,9 @@ impl<'a> Locator<'a> {
         }
     }
 
+    /// Returns `true` if `offset` is at the start of a line.
     pub fn is_at_start_of_line(&self, offset: TextSize) -> bool {
-        offset == TextSize::from(0)
-            || self.contents[TextRange::up_to(offset)].ends_with(['\n', '\r'])
+        self.line_start(offset) == offset
     }
 
     /// Computes the offset that is right after the newline character that ends `offset`'s line.
@@ -95,7 +111,7 @@ impl<'a> Locator<'a> {
     /// ## Examples
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -122,7 +138,7 @@ impl<'a> Locator<'a> {
     /// ## Examples
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -152,7 +168,7 @@ impl<'a> Locator<'a> {
     /// ## Examples
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -176,7 +192,7 @@ impl<'a> Locator<'a> {
     /// ## Examples
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -199,7 +215,7 @@ impl<'a> Locator<'a> {
     /// ## Examples
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -222,7 +238,7 @@ impl<'a> Locator<'a> {
     /// ## Examples
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -246,7 +262,7 @@ impl<'a> Locator<'a> {
     /// ## Examples
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -278,7 +294,7 @@ impl<'a> Locator<'a> {
     /// ## Examples
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -302,7 +318,7 @@ impl<'a> Locator<'a> {
     /// Returns true if the text of `range` contains any line break.
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -327,7 +343,7 @@ impl<'a> Locator<'a> {
     /// ## Examples
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -355,7 +371,7 @@ impl<'a> Locator<'a> {
     /// ## Examples
     ///
     /// ```
-    /// # use ruff_text_size::{TextRange, TextSize};
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
     /// # use ruff_source_file::Locator;
     ///
     /// let locator = Locator::new("First line\nsecond line\r\nthird line");
@@ -388,10 +404,63 @@ impl<'a> Locator<'a> {
         &self.contents[usize::from(offset)..]
     }
 
+    /// Finds the closest [`TextSize`] not exceeding the offset for which `is_char_boundary` is
+    /// `true`.
+    ///
+    /// Can be replaced with `str::floor_char_boundary` once it's stable.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// # use ruff_text_size::{Ranged, TextRange, TextSize};
+    /// # use ruff_source_file::Locator;
+    ///
+    /// let locator = Locator::new("Hello");
+    ///
+    /// assert_eq!(
+    ///     locator.floor_char_boundary(TextSize::from(0)),
+    ///     TextSize::from(0)
+    /// );
+    ///
+    /// assert_eq!(
+    ///     locator.floor_char_boundary(TextSize::from(5)),
+    ///     TextSize::from(5)
+    /// );
+    ///
+    /// let locator = Locator::new("α");
+    ///
+    /// assert_eq!(
+    ///     locator.floor_char_boundary(TextSize::from(0)),
+    ///     TextSize::from(0)
+    /// );
+    ///
+    /// assert_eq!(
+    ///     locator.floor_char_boundary(TextSize::from(1)),
+    ///     TextSize::from(0)
+    /// );
+    ///
+    /// assert_eq!(
+    ///     locator.floor_char_boundary(TextSize::from(2)),
+    ///     TextSize::from(2)
+    /// );
+    /// ```
+    pub fn floor_char_boundary(&self, offset: TextSize) -> TextSize {
+        if offset >= self.text_len() {
+            self.text_len()
+        } else {
+            // We know that the character boundary is within four bytes.
+            (0u32..=3u32)
+                .map(TextSize::from)
+                .filter_map(|index| offset.checked_sub(index))
+                .find(|offset| self.contents.is_char_boundary(offset.to_usize()))
+                .unwrap_or_default()
+        }
+    }
+
     /// Take the source code between the given [`TextRange`].
     #[inline]
-    pub fn slice(&self, range: TextRange) -> &'a str {
-        &self.contents[range]
+    pub fn slice<T: Ranged>(&self, ranged: T) -> &'a str {
+        &self.contents[ranged.range()]
     }
 
     /// Return the underlying source code.

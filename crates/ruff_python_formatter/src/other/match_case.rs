@@ -1,13 +1,11 @@
-use ruff_formatter::{write, Buffer, FormatResult};
-use ruff_python_ast::node::AstNode;
+use ruff_formatter::write;
+use ruff_python_ast::AstNode;
 use ruff_python_ast::MatchCase;
 
 use crate::builders::parenthesize_if_expands;
-use crate::comments::SourceComment;
 use crate::expression::parentheses::{NeedsParentheses, OptionalParentheses, Parentheses};
 use crate::prelude::*;
 use crate::statement::clause::{clause_body, clause_header, ClauseHeader};
-use crate::{FormatNodeRule, PyFormatter};
 
 #[derive(Default)]
 pub struct FormatMatchCase;
@@ -31,7 +29,7 @@ impl FormatNodeRule<MatchCase> for FormatMatchCase {
                     ClauseHeader::MatchCase(item),
                     dangling_item_comments,
                     &format_with(|f| {
-                        write!(f, [text("case"), space()])?;
+                        write!(f, [token("case"), space()])?;
 
                         let has_comments = comments.has_leading(pattern)
                             || comments.has_trailing_own_line(pattern);
@@ -59,7 +57,7 @@ impl FormatNodeRule<MatchCase> for FormatMatchCase {
                         }
 
                         if let Some(guard) = guard {
-                            write!(f, [space(), text("if"), space(), guard.format()])?;
+                            write!(f, [space(), token("if"), space(), guard.format()])?;
                         }
 
                         Ok(())
@@ -68,14 +66,5 @@ impl FormatNodeRule<MatchCase> for FormatMatchCase {
                 clause_body(body, dangling_item_comments),
             ]
         )
-    }
-
-    fn fmt_dangling_comments(
-        &self,
-        _dangling_comments: &[SourceComment],
-        _f: &mut PyFormatter,
-    ) -> FormatResult<()> {
-        // Handled as part of `fmt_fields`
-        Ok(())
     }
 }

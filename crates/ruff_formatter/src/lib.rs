@@ -15,9 +15,9 @@
 //! ## Formatting Macros
 //!
 //! This crate defines two macros to construct the IR. These are inspired by Rust's `fmt` macros
-//! * [`format!`]: Formats a formatable object
+//! * [`format!`]: Formats a formattable object
 //! * [`format_args!`]: Concatenates a sequence of Format objects.
-//! * [`write!`]: Writes a sequence of formatable objects into an output buffer.
+//! * [`write!`]: Writes a sequence of formattable objects into an output buffer.
 
 mod arguments;
 mod buffer;
@@ -35,8 +35,10 @@ mod source_code;
 use crate::formatter::Formatter;
 use crate::group_id::UniqueGroupIdBuilder;
 use crate::prelude::TagKind;
+use std::fmt;
 use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
+use std::num::{NonZeroU16, NonZeroU8, TryFromIntError};
 
 use crate::format_element::document::Document;
 use crate::printer::{Printer, PrinterOptions};
@@ -50,25 +52,26 @@ pub use source_code::{SourceCode, SourceCodeSlice};
 pub use crate::diagnostics::{ActualStart, FormatError, InvalidDocumentError, PrintError};
 pub use format_element::{normalize_newlines, FormatElement, LINE_TERMINATORS};
 pub use group_id::GroupId;
-use ruff_text_size::{TextRange, TextSize};
-use std::num::ParseIntError;
-use std::str::FromStr;
+use ruff_macros::CacheKey;
+use ruff_text_size::{TextLen, TextRange, TextSize};
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash, CacheKey)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "kebab-case")
+)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[derive(Default)]
 pub enum IndentStyle {
-    /// Tab
+    /// Use tabs to indent code.
     #[default]
     Tab,
-    /// Space, with its quantity
-    Space(u8),
+    /// Use [`IndentWidth`] spaces to indent code.
+    Space,
 }
 
 impl IndentStyle {
-    pub const DEFAULT_SPACES: u8 = 2;
-
     /// Returns `true` if this is an [`IndentStyle::Tab`].
     pub const fn is_tab(&self) -> bool {
         matches!(self, IndentStyle::Tab)
@@ -76,124 +79,109 @@ impl IndentStyle {
 
     /// Returns `true` if this is an [`IndentStyle::Space`].
     pub const fn is_space(&self) -> bool {
-        matches!(self, IndentStyle::Space(_))
-    }
-}
-
-impl FromStr for IndentStyle {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "tab" | "Tabs" => Ok(Self::Tab),
-            "space" | "Spaces" => Ok(Self::Space(IndentStyle::DEFAULT_SPACES)),
-            // TODO: replace this error with a diagnostic
-            v => {
-                let v = v.strip_prefix("Spaces, size: ").unwrap_or(v);
-
-                u8::from_str(v)
-                    .map(Self::Space)
-                    .map_err(|_| "Value not supported for IndentStyle")
-            }
-        }
+        matches!(self, IndentStyle::Space)
     }
 }
 
 impl std::fmt::Display for IndentStyle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IndentStyle::Tab => std::write!(f, "Tab"),
-            IndentStyle::Space(size) => std::write!(f, "Spaces, size: {size}"),
+            IndentStyle::Tab => std::write!(f, "tab"),
+            IndentStyle::Space => std::write!(f, "space"),
         }
     }
 }
 
-/// Validated value for the `line_width` formatter options
+/// The visual width of a indentation.
 ///
-/// The allowed range of values is 1..=320
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Determines the visual width of a tab character (`\t`) and the number of
+/// spaces per indent when using [`IndentStyle::Space`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq, CacheKey)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
-pub struct LineWidth(u16);
+pub struct IndentWidth(NonZeroU8);
+
+impl IndentWidth {
+    /// Return the numeric value for this [`LineWidth`]
+    pub const fn value(&self) -> u32 {
+        self.0.get() as u32
+    }
+}
+
+impl Default for IndentWidth {
+    fn default() -> Self {
+        Self(NonZeroU8::new(2).unwrap())
+    }
+}
+
+impl Display for IndentWidth {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl TryFrom<u8> for IndentWidth {
+    type Error = TryFromIntError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        NonZeroU8::try_from(value).map(Self)
+    }
+}
+
+impl From<NonZeroU8> for IndentWidth {
+    fn from(value: NonZeroU8) -> Self {
+        Self(value)
+    }
+}
+
+/// The maximum visual width to which the formatter should try to limit a line.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, CacheKey)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct LineWidth(NonZeroU16);
 
 impl LineWidth {
-    /// Maximum allowed value for a valid [`LineWidth`]
-    pub const MAX: u16 = 320;
-
     /// Return the numeric value for this [`LineWidth`]
-    pub fn value(&self) -> u16 {
-        self.0
+    pub const fn value(&self) -> u16 {
+        self.0.get()
     }
 }
 
 impl Default for LineWidth {
     fn default() -> Self {
-        Self(80)
+        Self(NonZeroU16::new(80).unwrap())
     }
 }
 
-/// Error type returned when parsing a [`LineWidth`] from a string fails
-pub enum ParseLineWidthError {
-    /// The string could not be parsed as a valid [u16]
-    ParseError(ParseIntError),
-    /// The [u16] value of the string is not a valid [LineWidth]
-    TryFromIntError(LineWidthFromIntError),
-}
-
-impl Debug for ParseLineWidthError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
+impl Display for LineWidth {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
     }
 }
-
-impl std::fmt::Display for ParseLineWidthError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseLineWidthError::ParseError(err) => std::fmt::Display::fmt(err, fmt),
-            ParseLineWidthError::TryFromIntError(err) => std::fmt::Display::fmt(err, fmt),
-        }
-    }
-}
-
-impl FromStr for LineWidth {
-    type Err = ParseLineWidthError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let value = u16::from_str(s).map_err(ParseLineWidthError::ParseError)?;
-        let value = Self::try_from(value).map_err(ParseLineWidthError::TryFromIntError)?;
-        Ok(value)
-    }
-}
-
-/// Error type returned when converting a u16 to a [`LineWidth`] fails
-#[derive(Clone, Copy, Debug)]
-pub struct LineWidthFromIntError(pub u16);
 
 impl TryFrom<u16> for LineWidth {
-    type Error = LineWidthFromIntError;
+    type Error = TryFromIntError;
 
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        if value > 0 && value <= Self::MAX {
-            Ok(Self(value))
-        } else {
-            Err(LineWidthFromIntError(value))
-        }
-    }
-}
-
-impl std::fmt::Display for LineWidthFromIntError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "The line width exceeds the maximum value ({})",
-            LineWidth::MAX
-        )
+    fn try_from(value: u16) -> Result<LineWidth, Self::Error> {
+        NonZeroU16::try_from(value).map(LineWidth)
     }
 }
 
 impl From<LineWidth> for u16 {
     fn from(value: LineWidth) -> Self {
-        value.0
+        value.0.get()
+    }
+}
+
+impl From<LineWidth> for u32 {
+    fn from(value: LineWidth) -> Self {
+        u32::from(value.0.get())
+    }
+}
+
+impl From<NonZeroU16> for LineWidth {
+    fn from(value: NonZeroU16) -> Self {
+        Self(value)
     }
 }
 
@@ -212,6 +200,9 @@ pub trait FormatContext {
 pub trait FormatOptions {
     /// The indent style.
     fn indent_style(&self) -> IndentStyle;
+
+    /// The visual width of an indent
+    fn indent_width(&self) -> IndentWidth;
 
     /// What's the max width of a line. Defaults to 80.
     fn line_width(&self) -> LineWidth;
@@ -256,6 +247,7 @@ impl FormatContext for SimpleFormatContext {
 #[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct SimpleFormatOptions {
     pub indent_style: IndentStyle,
+    pub indent_width: IndentWidth,
     pub line_width: LineWidth,
 }
 
@@ -264,14 +256,21 @@ impl FormatOptions for SimpleFormatOptions {
         self.indent_style
     }
 
+    fn indent_width(&self) -> IndentWidth {
+        self.indent_width
+    }
+
     fn line_width(&self) -> LineWidth {
         self.line_width
     }
 
     fn as_print_options(&self) -> PrinterOptions {
-        PrinterOptions::default()
-            .with_indent(self.indent_style)
-            .with_print_width(self.line_width.into())
+        PrinterOptions {
+            line_width: self.line_width,
+            indent_style: self.indent_style,
+            indent_width: self.indent_width,
+            ..PrinterOptions::default()
+        }
     }
 }
 
@@ -432,6 +431,128 @@ impl Printed {
     pub fn take_verbatim_ranges(&mut self) -> Vec<TextRange> {
         std::mem::take(&mut self.verbatim_ranges)
     }
+
+    /// Slices the formatted code to the sub-slices that covers the passed `source_range` in `source`.
+    ///
+    /// The implementation uses the source map generated during formatting to find the closest range
+    /// in the formatted document that covers `source_range` or more. The returned slice
+    /// matches the `source_range` exactly (except indent, see below) if the formatter emits [`FormatElement::SourcePosition`] for
+    /// the range's offsets.
+    ///
+    /// ## Indentation
+    /// The indentation before `source_range.start` is replaced with the indentation returned by the formatter
+    /// to fix up incorrectly intended code.
+    ///
+    /// Returns the entire document if the source map is empty.
+    ///
+    /// # Panics
+    /// If `source_range` points to offsets that are not in the bounds of `source`.
+    #[must_use]
+    pub fn slice_range(self, source_range: TextRange, source: &str) -> PrintedRange {
+        let mut start_marker: Option<SourceMarker> = None;
+        let mut end_marker: Option<SourceMarker> = None;
+
+        // Note: The printer can generate multiple source map entries for the same source position.
+        // For example if you have:
+        // * token("a + b")
+        // * `source_position(276)`
+        // * `token(")")`
+        // * `source_position(276)`
+        // *  `hard_line_break`
+        // The printer uses the source position 276 for both the tokens `)` and the `\n` because
+        // there were multiple `source_position` entries in the IR with the same offset.
+        // This can happen if multiple nodes start or end at the same position. A common example
+        // for this are expressions and expression statement that always end at the same offset.
+        //
+        // Warning: Source markers are often emitted sorted by their source position but it's not guaranteed
+        // and depends on the emitted `IR`.
+        // They are only guaranteed to be sorted in increasing order by their destination position.
+        for marker in self.sourcemap {
+            // Take the closest start marker, but skip over start_markers that have the same start.
+            if marker.source <= source_range.start()
+                && !start_marker.is_some_and(|existing| existing.source >= marker.source)
+            {
+                start_marker = Some(marker);
+            }
+
+            if marker.source >= source_range.end()
+                && !end_marker.is_some_and(|existing| existing.source <= marker.source)
+            {
+                end_marker = Some(marker);
+            }
+        }
+
+        let (source_start, formatted_start) = start_marker
+            .map(|marker| (marker.source, marker.dest))
+            .unwrap_or_default();
+
+        let (source_end, formatted_end) = end_marker
+            .map_or((source.text_len(), self.code.text_len()), |marker| {
+                (marker.source, marker.dest)
+            });
+
+        let source_range = TextRange::new(source_start, source_end);
+        let formatted_range = TextRange::new(formatted_start, formatted_end);
+
+        // Extend both ranges to include the indentation
+        let source_range = extend_range_to_include_indent(source_range, source);
+        let formatted_range = extend_range_to_include_indent(formatted_range, &self.code);
+
+        PrintedRange {
+            code: self.code[formatted_range].to_string(),
+            source_range,
+        }
+    }
+}
+
+/// Extends `range` backwards (by reducing `range.start`) to include any directly preceding whitespace (`\t` or ` `).
+///
+/// # Panics
+/// If `range.start` is out of `source`'s bounds.
+fn extend_range_to_include_indent(range: TextRange, source: &str) -> TextRange {
+    let whitespace_len: TextSize = source[..usize::from(range.start())]
+        .chars()
+        .rev()
+        .take_while(|c| matches!(c, ' ' | '\t'))
+        .map(TextLen::text_len)
+        .sum();
+
+    TextRange::new(range.start() - whitespace_len, range.end())
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct PrintedRange {
+    code: String,
+    source_range: TextRange,
+}
+
+impl PrintedRange {
+    pub fn new(code: String, source_range: TextRange) -> Self {
+        Self { code, source_range }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            code: String::new(),
+            source_range: TextRange::default(),
+        }
+    }
+
+    /// The formatted code.
+    pub fn as_code(&self) -> &str {
+        &self.code
+    }
+
+    pub fn into_code(self) -> String {
+        self.code
+    }
+
+    /// The range the formatted code corresponds to in the source document.
+    pub fn source_range(&self) -> TextRange {
+        self.source_range
+    }
 }
 
 /// Public return type of the formatter
@@ -444,7 +565,7 @@ pub type FormatResult<F> = Result<F, FormatError>;
 /// Implementing `Format` for a custom struct
 ///
 /// ```
-/// use ruff_formatter::{format, write, IndentStyle, LineWidth};
+/// use ruff_formatter::{format, write, IndentStyle};
 /// use ruff_formatter::prelude::*;
 /// use ruff_text_size::TextSize;
 ///
@@ -453,8 +574,7 @@ pub type FormatResult<F> = Result<F, FormatError>;
 /// impl Format<SimpleFormatContext> for Paragraph {
 ///     fn fmt(&self, f: &mut Formatter<SimpleFormatContext>) -> FormatResult<()> {
 ///         write!(f, [
-///             hard_line_break(),
-///             dynamic_text(&self.0, None),
+///             text(&self.0),
 ///             hard_line_break(),
 ///         ])
 ///     }
@@ -589,6 +709,10 @@ where
             context: PhantomData,
         }
     }
+
+    pub fn rule(&self) -> &R {
+        &self.rule
+    }
 }
 
 impl<T, R, O, C> FormatRefWithRule<'_, T, R, C>
@@ -651,10 +775,6 @@ where
         self.item = item;
         self
     }
-
-    pub fn into_item(self) -> T {
-        self.item
-    }
 }
 
 impl<T, R, C> Format<C> for FormatOwnedWithRule<T, R, C>
@@ -703,7 +823,7 @@ where
 /// let mut state = FormatState::new(SimpleFormatContext::default());
 /// let mut buffer = VecBuffer::new(&mut state);
 ///
-/// write!(&mut buffer, [format_args!(text("Hello World"))])?;
+/// write!(&mut buffer, [format_args!(token("Hello World"))])?;
 ///
 /// let formatted = Formatted::new(Document::from(buffer.into_vec()), SimpleFormatContext::default());
 ///
@@ -722,7 +842,7 @@ where
 /// let mut state = FormatState::new(SimpleFormatContext::default());
 /// let mut buffer = VecBuffer::new(&mut state);
 ///
-/// write!(&mut buffer, [text("Hello World")])?;
+/// write!(&mut buffer, [token("Hello World")])?;
 ///
 /// let formatted = Formatted::new(Document::from(buffer.into_vec()), SimpleFormatContext::default());
 ///
@@ -753,7 +873,7 @@ pub fn write<Context>(
 /// use ruff_formatter::{format, format_args};
 ///
 /// # fn main() -> FormatResult<()> {
-/// let formatted = format!(SimpleFormatContext::default(), [&format_args!(text("test"))])?;
+/// let formatted = format!(SimpleFormatContext::default(), [&format_args!(token("test"))])?;
 /// assert_eq!("test", formatted.print()?.as_code());
 /// # Ok(())
 /// # }
@@ -766,7 +886,7 @@ pub fn write<Context>(
 /// use ruff_formatter::{format};
 ///
 /// # fn main() -> FormatResult<()> {
-/// let formatted = format!(SimpleFormatContext::default(), [text("test")])?;
+/// let formatted = format!(SimpleFormatContext::default(), [token("test")])?;
 /// assert_eq!("test", formatted.print()?.as_code());
 /// # Ok(())
 /// # }
@@ -805,6 +925,7 @@ pub struct FormatState<Context> {
     group_id_builder: UniqueGroupIdBuilder,
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl<Context> std::fmt::Debug for FormatState<Context>
 where
     Context: std::fmt::Debug,

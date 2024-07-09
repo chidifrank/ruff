@@ -65,7 +65,7 @@ d3 = "d"[
 
 # Spacing around the colon(s)
 def a():
-    ...
+    pass
 
 e00 = "e"[:]
 e01 = "e"[:1]
@@ -91,3 +91,33 @@ f = "f"[:,]
 g1 = "g"[(1):(2)]
 g2 = "g"[(1):(2):(3)]
 
+# Don't omit optional parentheses for subscripts
+# https://github.com/astral-sh/ruff/issues/7319
+def f():
+    return (
+        package_version is not None
+        and package_version.split(".")[:2] == package_info.version.split(".")[:2]
+    )
+
+
+# Group to ensure other arguments don't expand.
+self.assertEqual(
+    houses.all()[0].occupants.all()[0].houses.all()[1].rooms.all()[0],
+    self.room2_1,
+)
+
+self.assertEqual(
+    suite._tests[0].id().split(".")[0],
+    os.path.basename(os.getcwd()),
+)
+
+# PEP 646 introduced starred expression in indexes
+# https://peps.python.org/pep-0646/#change-1-star-expressions-in-indexes
+data[*x]
+data[*x,]
+data[
+    *x,
+]
+data[  # comment 1
+     *x,  # comment 2
+]  # comment 3

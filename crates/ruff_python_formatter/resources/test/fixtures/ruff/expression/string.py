@@ -130,3 +130,11 @@ test_particular = [
 x = ("""aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa""" """bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb""")
 x = (f"""aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa""" f"""bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb""")
 x = (b"""aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa""" b"""bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb""")
+
+# https://github.com/astral-sh/ruff/issues/7460
+trailing_preferred_quote_texts = [''' "''', ''' ""''', ''' """''', ''' """"''']
+
+a = f"""\x1F"""
+a = """\x1F"""
+a = """\\x1F"""
+a = """\\\x1F"""

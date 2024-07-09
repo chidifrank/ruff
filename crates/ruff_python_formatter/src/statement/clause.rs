@@ -1,17 +1,16 @@
-use crate::comments::{
-    leading_alternate_branch_comments, trailing_comments, SourceComment, SuppressionKind,
-};
-use crate::prelude::*;
-use crate::statement::suite::{contains_only_an_ellipsis, SuiteKind};
-use crate::verbatim::write_suppressed_clause_header;
 use ruff_formatter::{write, Argument, Arguments, FormatError};
-use ruff_python_ast::node::AnyNodeRef;
+use ruff_python_ast::AnyNodeRef;
 use ruff_python_ast::{
-    ElifElseClause, ExceptHandlerExceptHandler, MatchCase, Ranged, StmtClassDef, StmtFor,
-    StmtFunctionDef, StmtIf, StmtMatch, StmtTry, StmtWhile, StmtWith, Suite,
+    ElifElseClause, ExceptHandlerExceptHandler, MatchCase, StmtClassDef, StmtFor, StmtFunctionDef,
+    StmtIf, StmtMatch, StmtTry, StmtWhile, StmtWith, Suite,
 };
 use ruff_python_trivia::{SimpleToken, SimpleTokenKind, SimpleTokenizer};
-use ruff_text_size::{TextRange, TextSize};
+use ruff_text_size::{Ranged, TextRange, TextSize};
+
+use crate::comments::{leading_alternate_branch_comments, trailing_comments, SourceComment};
+use crate::statement::suite::{contains_only_an_ellipsis, SuiteKind};
+use crate::verbatim::write_suppressed_clause_header;
+use crate::{has_skip_comment, prelude::*};
 
 /// The header of a compound statement clause.
 ///
@@ -59,11 +58,9 @@ impl<'a> ClauseHeader<'a> {
             | ClauseHeader::With(_)
             | ClauseHeader::OrElse(_) => last_child_end,
 
-            ClauseHeader::ExceptHandler(handler) => handler
-                .name
-                .as_ref()
-                .map(ruff_python_ast::Ranged::end)
-                .or(last_child_end),
+            ClauseHeader::ExceptHandler(handler) => {
+                handler.name.as_ref().map(Ranged::end).or(last_child_end)
+            }
         };
 
         let colon = colon_range(end.unwrap_or(keyword_range.end()), source)?;
@@ -111,7 +108,7 @@ impl<'a> ClauseHeader<'a> {
                 returns,
                 body: _,
             }) => {
-                if let Some(type_params) = type_params.as_ref() {
+                if let Some(type_params) = type_params.as_deref() {
                     visit(type_params, visitor);
                 }
                 visit(parameters.as_ref(), visitor);
@@ -204,15 +201,23 @@ impl<'a> ClauseHeader<'a> {
     fn first_keyword_range(self, source: &str) -> FormatResult<TextRange> {
         match self {
             ClauseHeader::Class(header) => {
-                find_keyword(header.start(), SimpleTokenKind::Class, source)
+                let start_position = header
+                    .decorator_list
+                    .last()
+                    .map_or_else(|| header.start(), Ranged::end);
+                find_keyword(start_position, SimpleTokenKind::Class, source)
             }
             ClauseHeader::Function(header) => {
+                let start_position = header
+                    .decorator_list
+                    .last()
+                    .map_or_else(|| header.start(), Ranged::end);
                 let keyword = if header.is_async {
                     SimpleTokenKind::Async
                 } else {
                     SimpleTokenKind::Def
                 };
-                find_keyword(header.start(), keyword, source)
+                find_keyword(start_position, keyword, source)
             }
             ClauseHeader::If(header) => find_keyword(header.start(), SimpleTokenKind::If, source),
             ClauseHeader::ElifElse(ElifElseClause {
@@ -346,11 +351,23 @@ impl<'ast> Format<PyFormatContext<'ast>> for FormatClauseHeader<'_, 'ast> {
             leading_alternate_branch_comments(leading_comments, last_node).fmt(f)?;
         }
 
-        if SuppressionKind::has_skip_comment(self.trailing_colon_comment, f.context().source()) {
+        if has_skip_comment(self.trailing_colon_comment, f.context().source()) {
             write_suppressed_clause_header(self.header, f)?;
         } else {
-            f.write_fmt(Arguments::from(&self.formatter))?;
-            text(":").fmt(f)?;
+            // Write a source map entry for the colon for range formatting to support formatting the clause header without
+            // the clause body. Avoid computing `self.header.range()` otherwise because it's somewhat involved.
+            let clause_end = if f.options().source_map_generation().is_enabled() {
+                Some(source_position(
+                    self.header.range(f.context().source())?.end(),
+                ))
+            } else {
+                None
+            };
+
+            write!(
+                f,
+                [Arguments::from(&self.formatter), token(":"), clause_end]
+            )?;
         }
 
         trailing_comments(self.trailing_colon_comment).fmt(f)
@@ -384,7 +401,12 @@ pub(crate) fn clause_body<'a>(
 
 impl Format<PyFormatContext<'_>> for FormatClauseBody<'_> {
     fn fmt(&self, f: &mut Formatter<PyFormatContext<'_>>) -> FormatResult<()> {
-        if f.options().source_type().is_stub()
+        // In stable, stubs are only collapsed in stub files, in preview stubs in functions
+        // or classes are collapsed too
+        let should_collapse_stub = f.options().source_type().is_stub()
+            || matches!(self.kind, SuiteKind::Function | SuiteKind::Class);
+
+        if should_collapse_stub
             && contains_only_an_ellipsis(self.body, f.context().comments())
             && self.trailing_comments.is_empty()
         {
@@ -444,7 +466,12 @@ fn find_keyword(
 fn colon_range(after_keyword_or_condition: TextSize, source: &str) -> FormatResult<TextRange> {
     let mut tokenizer = SimpleTokenizer::starts_at(after_keyword_or_condition, source)
         .skip_trivia()
-        .skip_while(|token| token.kind() == SimpleTokenKind::RParen);
+        .skip_while(|token| {
+            matches!(
+                token.kind(),
+                SimpleTokenKind::RParen | SimpleTokenKind::Comma
+            )
+        });
 
     match tokenizer.next() {
         Some(SimpleToken {

@@ -1,11 +1,12 @@
-use crate::comments::{SourceComment, SuppressionKind};
-use crate::context::PyFormatContext;
+use ruff_formatter::prelude::{space, token};
+use ruff_formatter::write;
+use ruff_python_ast::StmtAssert;
+
+use crate::comments::SourceComment;
+
 use crate::expression::maybe_parenthesize_expression;
 use crate::expression::parentheses::Parenthesize;
-use crate::{FormatNodeRule, PyFormatter};
-use ruff_formatter::prelude::{space, text};
-use ruff_formatter::{write, Buffer, FormatResult};
-use ruff_python_ast::StmtAssert;
+use crate::{has_skip_comment, prelude::*};
 
 #[derive(Default)]
 pub struct FormatStmtAssert;
@@ -21,7 +22,7 @@ impl FormatNodeRule<StmtAssert> for FormatStmtAssert {
         write!(
             f,
             [
-                text("assert"),
+                token("assert"),
                 space(),
                 maybe_parenthesize_expression(test, item, Parenthesize::IfBreaks)
             ]
@@ -31,7 +32,7 @@ impl FormatNodeRule<StmtAssert> for FormatStmtAssert {
             write!(
                 f,
                 [
-                    text(","),
+                    token(","),
                     space(),
                     maybe_parenthesize_expression(msg, item, Parenthesize::IfBreaks),
                 ]
@@ -46,6 +47,6 @@ impl FormatNodeRule<StmtAssert> for FormatStmtAssert {
         trailing_comments: &[SourceComment],
         context: &PyFormatContext,
     ) -> bool {
-        SuppressionKind::has_skip_comment(trailing_comments, context.source())
+        has_skip_comment(trailing_comments, context.source())
     }
 }

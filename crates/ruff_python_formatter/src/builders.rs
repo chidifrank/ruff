@@ -1,8 +1,7 @@
-use ruff_formatter::{format_args, write, Argument, Arguments};
-use ruff_python_ast::Ranged;
-use ruff_text_size::{TextRange, TextSize};
+use ruff_formatter::{write, Argument, Arguments};
+use ruff_text_size::{Ranged, TextRange, TextSize};
 
-use crate::context::{NodeLevel, WithNodeLevel};
+use crate::context::{FStringState, NodeLevel, WithNodeLevel};
 use crate::other::commas::has_magic_trailing_comma;
 use crate::prelude::*;
 
@@ -13,11 +12,20 @@ where
 {
     ParenthesizeIfExpands {
         inner: Argument::new(content),
+        indent: true,
     }
 }
 
 pub(crate) struct ParenthesizeIfExpands<'a, 'ast> {
     inner: Argument<'a, PyFormatContext<'ast>>,
+    indent: bool,
+}
+
+impl ParenthesizeIfExpands<'_, '_> {
+    pub(crate) fn with_indent(mut self, indent: bool) -> Self {
+        self.indent = indent;
+        self
+    }
 }
 
 impl<'ast> Format<PyFormatContext<'ast>> for ParenthesizeIfExpands<'_, 'ast> {
@@ -27,11 +35,17 @@ impl<'ast> Format<PyFormatContext<'ast>> for ParenthesizeIfExpands<'_, 'ast> {
 
             write!(
                 f,
-                [group(&format_args![
-                    if_group_breaks(&text("(")),
-                    soft_block_indent(&Arguments::from(&self.inner)),
-                    if_group_breaks(&text(")")),
-                ])]
+                [group(&format_with(|f| {
+                    if_group_breaks(&token("(")).fmt(f)?;
+
+                    if self.indent {
+                        soft_block_indent(&Arguments::from(&self.inner)).fmt(f)?;
+                    } else {
+                        Arguments::from(&self.inner).fmt(f)?;
+                    };
+
+                    if_group_breaks(&token(")")).fmt(f)
+                }))]
             )
         }
     }
@@ -151,9 +165,9 @@ impl<'fmt, 'ast, 'buf> JoinCommaSeparatedBuilder<'fmt, 'ast, 'buf> {
         N: Ranged,
         Separator: Format<PyFormatContext<'ast>>,
     {
-        self.result = self.result.and_then(|_| {
+        self.result = self.result.and_then(|()| {
             if self.entries.is_one_or_more() {
-                write!(self.fmt, [text(","), separator])?;
+                write!(self.fmt, [token(","), separator])?;
             }
 
             self.entries = self.entries.next(node.end());
@@ -191,11 +205,20 @@ impl<'fmt, 'ast, 'buf> JoinCommaSeparatedBuilder<'fmt, 'ast, 'buf> {
     }
 
     pub(crate) fn finish(&mut self) -> FormatResult<()> {
-        self.result.and_then(|_| {
+        self.result.and_then(|()| {
+            // If the formatter is inside an f-string expression element, and the layout
+            // is flat, then we don't need to add a trailing comma.
+            if let FStringState::InsideExpressionElement(context) =
+                self.fmt.context().f_string_state()
+            {
+                if !context.can_contain_line_breaks() {
+                    return Ok(());
+                }
+            }
+
             if let Some(last_end) = self.entries.position() {
                 let magic_trailing_comma = has_magic_trailing_comma(
                     TextRange::new(last_end, self.sequence_end),
-                    self.fmt.options(),
                     self.fmt.context(),
                 );
 
@@ -205,7 +228,7 @@ impl<'fmt, 'ast, 'buf> JoinCommaSeparatedBuilder<'fmt, 'ast, 'buf> {
                     || self.trailing_comma == TrailingComma::OneOrMore
                     || self.entries.is_more_than_one()
                 {
-                    if_group_breaks(&text(",")).fmt(self.fmt)?;
+                    if_group_breaks(&token(",")).fmt(self.fmt)?;
                 }
 
                 if magic_trailing_comma {

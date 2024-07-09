@@ -1,10 +1,10 @@
-use crate::comments::{SourceComment, SuppressionKind};
-use crate::expression::maybe_parenthesize_expression;
-use crate::expression::parentheses::Parenthesize;
-use crate::prelude::*;
-use crate::FormatNodeRule;
 use ruff_formatter::write;
 use ruff_python_ast::Decorator;
+
+use crate::comments::SourceComment;
+use crate::expression::maybe_parenthesize_expression;
+use crate::expression::parentheses::Parenthesize;
+use crate::{has_skip_comment, prelude::*};
 
 #[derive(Default)]
 pub struct FormatDecorator;
@@ -19,7 +19,7 @@ impl FormatNodeRule<Decorator> for FormatDecorator {
         write!(
             f,
             [
-                text("@"),
+                token("@"),
                 maybe_parenthesize_expression(expression, item, Parenthesize::Optional)
             ]
         )
@@ -30,6 +30,6 @@ impl FormatNodeRule<Decorator> for FormatDecorator {
         trailing_comments: &[SourceComment],
         context: &PyFormatContext,
     ) -> bool {
-        SuppressionKind::has_skip_comment(trailing_comments, context.source())
+        has_skip_comment(trailing_comments, context.source())
     }
 }

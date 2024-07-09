@@ -1,16 +1,13 @@
-use ruff_formatter::prelude::format_with;
-use ruff_formatter::{Format, FormatResult};
-use ruff_python_ast::node::AnyNodeRef;
-use ruff_python_ast::{PatternMatchSequence, Ranged};
+use ruff_formatter::{format_args, Format, FormatResult};
+use ruff_python_ast::AnyNodeRef;
+use ruff_python_ast::PatternMatchSequence;
 use ruff_python_trivia::{SimpleTokenKind, SimpleTokenizer};
-use ruff_text_size::TextRange;
+use ruff_text_size::{Ranged, TextRange};
 
-use crate::builders::PyFormatterExtensions;
-use crate::context::PyFormatContext;
 use crate::expression::parentheses::{
     empty_parenthesized, optional_parentheses, parenthesized, NeedsParentheses, OptionalParentheses,
 };
-use crate::{FormatNodeRule, PyFormatter};
+use crate::prelude::*;
 
 #[derive(Default)]
 pub struct FormatPatternMatchSequence;
@@ -23,14 +20,26 @@ impl FormatNodeRule<PatternMatchSequence> for FormatPatternMatchSequence {
         let dangling = comments.dangling(item);
 
         let sequence_type = SequenceType::from_pattern(item, f.context().source());
-        if patterns.is_empty() {
-            return match sequence_type {
-                SequenceType::List => empty_parenthesized("[", dangling, "]").fmt(f),
-                SequenceType::Tuple | SequenceType::TupleNoParens => {
-                    empty_parenthesized("(", dangling, ")").fmt(f)
-                }
-            };
+
+        match (patterns.as_slice(), sequence_type) {
+            // If the sequence is empty, format the empty parentheses, along with any dangling
+            // comments.
+            ([], SequenceType::Tuple | SequenceType::TupleNoParens) => {
+                return empty_parenthesized("(", dangling, ")").fmt(f)
+            }
+            ([], SequenceType::List) => return empty_parenthesized("[", dangling, "]").fmt(f),
+
+            // A single-element tuple should always be parenthesized, and the trailing comma
+            // should never cause it to expand.
+            ([elt], SequenceType::Tuple | SequenceType::TupleNoParens) => {
+                return parenthesized("(", &format_args![elt.format(), token(",")], ")")
+                    .with_dangling_comments(dangling)
+                    .fmt(f)
+            }
+
+            _ => {}
         }
+
         let items = format_with(|f| {
             f.join_comma_separated(range.end())
                 .nodes(patterns.iter())

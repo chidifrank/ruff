@@ -1,7 +1,8 @@
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use std::num::NonZeroUsize;
+use std::num::{NonZeroUsize, ParseIntError};
 use std::ops::Deref;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use ruff_text_size::{TextLen, TextRange, TextSize};
@@ -13,11 +14,12 @@ use crate::SourceLocation;
 /// Index for fast [byte offset](TextSize) to [`SourceLocation`] conversions.
 ///
 /// Cloning a [`LineIndex`] is cheap because it only requires bumping a reference count.
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct LineIndex {
     inner: Arc<LineIndexInner>,
 }
 
+#[derive(Eq, PartialEq)]
 struct LineIndexInner {
     line_starts: Vec<TextSize>,
     kind: IndexKind,
@@ -128,6 +130,11 @@ impl LineIndex {
         self.line_starts().len()
     }
 
+    /// Returns `true` if the text only consists of ASCII characters
+    pub fn is_ascii(&self) -> bool {
+        self.kind().is_ascii()
+    }
+
     /// Returns the row number for a given offset.
     ///
     /// ## Examples
@@ -184,6 +191,20 @@ impl LineIndex {
         }
     }
 
+    /// Returns the [byte offset](TextSize) of the `line`'s end.
+    /// The offset is the end of the line, excluding the newline character ending the line (if any).
+    pub fn line_end_exclusive(&self, line: OneIndexed, contents: &str) -> TextSize {
+        let row_index = line.to_zero_indexed();
+        let starts = self.line_starts();
+
+        // If start-of-line position after last line
+        if row_index.saturating_add(1) >= starts.len() {
+            contents.text_len()
+        } else {
+            starts[row_index + 1] - TextSize::new(1)
+        }
+    }
+
     /// Returns the [`TextRange`] of the `line` with the given index.
     /// The start points to the first character's [byte offset](TextSize), the end up to, and including
     /// the newline character ending the line (if any).
@@ -197,6 +218,34 @@ impl LineIndex {
                 self.line_start(line, contents),
                 self.line_start(line.saturating_add(1), contents),
             )
+        }
+    }
+
+    /// Returns the [byte offset](TextSize) at `line` and `column`.
+    pub fn offset(&self, line: OneIndexed, column: OneIndexed, contents: &str) -> TextSize {
+        // If start-of-line position after last line
+        if line.to_zero_indexed() > self.line_starts().len() {
+            return contents.text_len();
+        }
+
+        let line_range = self.line_range(line, contents);
+
+        match self.kind() {
+            IndexKind::Ascii => {
+                line_range.start()
+                    + TextSize::try_from(column.get())
+                        .unwrap_or(line_range.len())
+                        .clamp(TextSize::new(0), line_range.len())
+            }
+            IndexKind::Utf8 => {
+                let rest = &contents[line_range];
+                let column_offset: TextSize = rest
+                    .chars()
+                    .take(column.get())
+                    .map(ruff_text_size::TextLen::text_len)
+                    .sum();
+                line_range.start() + column_offset
+            }
         }
     }
 
@@ -220,7 +269,7 @@ impl Debug for LineIndex {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum IndexKind {
     /// Optimized index for an ASCII only document
     Ascii,
@@ -308,6 +357,13 @@ const fn unwrap<T: Copy>(option: Option<T>) -> T {
     match option {
         Some(value) => value,
         None => panic!("unwrapping None"),
+    }
+}
+
+impl FromStr for OneIndexed {
+    type Err = ParseIntError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(OneIndexed(NonZeroUsize::from_str(s)?))
     }
 }
 

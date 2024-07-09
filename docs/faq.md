@@ -1,23 +1,36 @@
 # FAQ
 
-## Is Ruff compatible with Black?
+## Is the Ruff linter compatible with Black?
 
-Yes. Ruff is compatible with [Black](https://github.com/psf/black) out-of-the-box, as long as
-the `line-length` setting is consistent between the two.
+Yes. The Ruff linter is compatible with [Black](https://github.com/psf/black) out-of-the-box, as
+long as the [`line-length`](settings.md#line-length) setting is consistent between the two.
 
-As a project, Ruff is designed to be used alongside Black and, as such, will defer implementing
-stylistic lint rules that are obviated by autoformatting.
+Ruff is designed to be used alongside a formatter (like Ruff's own formatter, or Black) and, as
+such, will defer implementing stylistic rules that are obviated by automated formatting.
 
-Note that Ruff and Black treat line-length enforcement a little differently. Black makes a
-best-effort attempt to adhere to the `line-length`, but avoids automatic line-wrapping in some cases
-(e.g., within comments). Ruff, on the other hand, will flag rule `E501` for any line that exceeds
-the `line-length` setting. As such, if `E501` is enabled, Ruff can still trigger line-length
-violations even when Black is enabled.
+Note that Ruff's linter and Black treat line-length enforcement a little differently. Black, like
+Ruff's formatter, makes a best-effort attempt to adhere to the
+[`line-length`](settings.md#line-length), but avoids automatic line-wrapping in some cases (e.g.,
+within comments). Ruff, on the other hand, will flag [`line-too-long`](rules/line-too-long.md)
+(`E501`) for any line that exceeds the [`line-length`](settings.md#line-length) setting. As such, if
+[`line-too-long`](rules/line-too-long.md) (`E501`) is enabled, Ruff can still trigger line-length
+violations even when Black or `ruff format` is enabled.
 
-## How does Ruff compare to Flake8?
+## How does Ruff's formatter compare to Black?
 
-(Coming from Flake8? Try [`flake8-to-ruff`](https://pypi.org/project/flake8-to-ruff/) to
-automatically convert your existing configuration.)
+The Ruff formatter is designed to be a drop-in replacement for [Black](https://github.com/psf/black).
+
+Specifically, the formatter is intended to emit near-identical output when run over Black-formatted
+code. When run over extensive Black-formatted projects like Django and Zulip, > 99.9% of lines
+are formatted identically. When migrating an existing project from Black to Ruff, you should expect
+to see a few differences on the margins, but the vast majority of your code should be unchanged.
+
+When run over _non_-Black-formatted code, the formatter makes some different decisions than Black,
+and so more deviations should be expected, especially around the treatment of end-of-line comments.
+
+See [_Black compatibility_](formatter.md#black-compatibility) for more.
+
+## How does Ruff's linter compare to Flake8?
 
 Ruff can be used as a drop-in replacement for Flake8 when used (1) without or with a small number of
 plugins, (2) alongside Black, and (3) on Python 3 code.
@@ -51,7 +64,8 @@ natively, including:
 - [flake8-executable](https://pypi.org/project/flake8-executable/)
 - [flake8-gettext](https://pypi.org/project/flake8-gettext/)
 - [flake8-implicit-str-concat](https://pypi.org/project/flake8-implicit-str-concat/)
-- [flake8-import-conventions](https://github.com/joaopalmeiro/flake8-import-conventions)
+- [flake8-import-conventions](https://pypi.org/project/flake8-import-conventions/)
+- [flake8-logging](https://pypi.org/project/flake8-logging-format/)
 - [flake8-logging-format](https://pypi.org/project/flake8-logging-format/)
 - [flake8-no-pep420](https://pypi.org/project/flake8-no-pep420)
 - [flake8-pie](https://pypi.org/project/flake8-pie/)
@@ -79,7 +93,7 @@ natively, including:
 - [pygrep-hooks](https://github.com/pre-commit/pygrep-hooks)
 - [pyupgrade](https://pypi.org/project/pyupgrade/)
 - [tryceratops](https://pypi.org/project/tryceratops/)
-- [yesqa](https://github.com/asottile/yesqa)
+- [yesqa](https://pypi.org/project/yesqa/)
 
 Note that, in some cases, Ruff uses different rule codes and prefixes than would be found in the
 originating Flake8 plugins. For example, Ruff uses `TID252` to represent the `I252` rule from
@@ -97,10 +111,10 @@ There are a few other minor incompatibilities between Ruff and the originating F
     code. (This is often solved by modifying the `src` property, e.g., to `src = ["src"]`, if your
     code is nested in a `src` directory.)
 
-## How does Ruff compare to Pylint?
+## How does Ruff's linter compare to Pylint?
 
-At time of writing, Pylint implements ~409 total rules, while Ruff implements 440, of which at least
-89 overlap with the Pylint rule set (you can find the mapping in [#970](https://github.com/astral-sh/ruff/issues/970)).
+At time of writing, Pylint implements ~409 total rules, while Ruff implements over 800, of which at
+least 209 overlap with the Pylint rule set (see: [#970](https://github.com/astral-sh/ruff/issues/970)).
 
 Pylint implements many rules that Ruff does not, and vice versa. For example, Pylint does more type
 inference than Ruff (e.g., Pylint can validate the number of arguments in a function call). As such,
@@ -111,8 +125,16 @@ Despite these differences, many users have successfully switched from Pylint to 
 those using Ruff alongside a [type checker](faq.md#how-does-ruff-compare-to-mypy-or-pyright-or-pyre),
 which can cover some of the functionality that Pylint provides.
 
-Like Flake8, Pylint supports plugins (called "checkers"), while Ruff implements all rules natively.
-Unlike Pylint, Ruff is capable of automatically fixing its own lint violations.
+Like Flake8, Pylint supports plugins (called "checkers"), while Ruff implements all rules natively
+and does not support custom or third-party rules. Unlike Pylint, Ruff is capable of automatically
+fixing its own lint violations.
+
+In some cases, Ruff's rules may yield slightly different results than their Pylint counterparts. For
+example, Ruff's [`too-many-branches`](rules/too-many-branches.md) does not count `try` blocks as
+their own branches, unlike Pylint's `R0912`. Ruff's `PL` rule group also includes a small number of
+rules from Pylint _extensions_ (like [`magic-value-comparison`](rules/magic-value-comparison.md)),
+which need to be explicitly activated when using Pylint. By enabling Ruff's `PL` group, you may
+see violations for rules that weren't previously enabled through your Pylint configuration.
 
 Pylint parity is being tracked in [#970](https://github.com/astral-sh/ruff/issues/970).
 
@@ -145,7 +167,7 @@ Today, Ruff can be used to replace Flake8 when used with any of the following pl
 - [flake8-builtins](https://pypi.org/project/flake8-builtins/)
 - [flake8-commas](https://pypi.org/project/flake8-commas/)
 - [flake8-comprehensions](https://pypi.org/project/flake8-comprehensions/)
-- [flake8-copyright](https://pypi.org/project/flake8-comprehensions/)
+- [flake8-copyright](https://pypi.org/project/flake8-copyright/)
 - [flake8-datetimez](https://pypi.org/project/flake8-datetimez/)
 - [flake8-debugger](https://pypi.org/project/flake8-debugger/)
 - [flake8-django](https://pypi.org/project/flake8-django/)
@@ -155,7 +177,8 @@ Today, Ruff can be used to replace Flake8 when used with any of the following pl
 - [flake8-executable](https://pypi.org/project/flake8-executable/)
 - [flake8-gettext](https://pypi.org/project/flake8-gettext/)
 - [flake8-implicit-str-concat](https://pypi.org/project/flake8-implicit-str-concat/)
-- [flake8-import-conventions](https://github.com/joaopalmeiro/flake8-import-conventions)
+- [flake8-import-conventions](https://pypi.org/project/flake8-import-conventions/)
+- [flake8-logging](https://pypi.org/project/flake8-logging/)
 - [flake8-logging-format](https://pypi.org/project/flake8-logging-format/)
 - [flake8-no-pep420](https://pypi.org/project/flake8-no-pep420)
 - [flake8-pie](https://pypi.org/project/flake8-pie/)
@@ -180,16 +203,21 @@ Today, Ruff can be used to replace Flake8 when used with any of the following pl
 - [pydocstyle](https://pypi.org/project/pydocstyle/)
 - [tryceratops](https://pypi.org/project/tryceratops/)
 
-Ruff can also replace [isort](https://pypi.org/project/isort/),
-[yesqa](https://github.com/asottile/yesqa), [eradicate](https://pypi.org/project/eradicate/), and
+Ruff can also replace [Black](https://pypi.org/project/black/), [isort](https://pypi.org/project/isort/),
+[yesqa](https://pypi.org/project/yesqa/), [eradicate](https://pypi.org/project/eradicate/), and
 most of the rules implemented in [pyupgrade](https://pypi.org/project/pyupgrade/).
 
 If you're looking to use Ruff, but rely on an unsupported Flake8 plugin, feel free to file an
 [issue](https://github.com/astral-sh/ruff/issues/new).
 
+## Do I have to use Ruff's linter and formatter together?
+
+Nope! Ruff's linter and formatter can be used independently of one another -- you can use
+Ruff as a formatter, but not a linter, or vice versa.
+
 ## What versions of Python does Ruff support?
 
-Ruff can lint code for any Python version from 3.7 onwards, including Python 3.10 and 3.11.
+Ruff can lint code for any Python version from 3.7 onwards, including Python 3.13.
 
 Ruff does not support Python 2. Ruff _may_ run on pre-Python 3.7 code, although such versions
 are not officially supported (e.g., Ruff does _not_ respect type comments).
@@ -207,7 +235,7 @@ pip install ruff
 Ruff ships with wheels for all major platforms, which enables `pip` to install Ruff without relying
 on Rust at all.
 
-## Can I write my own plugins for Ruff?
+## Can I write my own linter plugins for Ruff?
 
 Ruff does not yet support third-party plugins, though a plugin system is within-scope for the
 project. See [#283](https://github.com/astral-sh/ruff/issues/283) for more.
@@ -223,47 +251,27 @@ isort treat inline comments in some cases (see: [#1381](https://github.com/astra
 
 For example, Ruff tends to group non-aliased imports from the same module:
 
-```py
+```python
 from numpy import cos, int8, int16, int32, int64, tan, uint8, uint16, uint32, uint64
 from numpy import sin as np_sin
 ```
 
 Whereas isort splits them into separate import statements at each aliased boundary:
 
-```py
+```python
 from numpy import cos, int8, int16, int32, int64
 from numpy import sin as np_sin
 from numpy import tan, uint8, uint16, uint32, uint64
 ```
 
+Ruff also correctly classifies some modules as standard-library that aren't recognized
+by isort, like `_string` and `idlelib`.
+
 Like isort, Ruff's import sorting is compatible with Black.
-
-Ruff does not yet support all of isort's configuration options, though it does support many of
-them. You can find the supported settings in the [API reference](settings.md#isort).
-For example, you can set `known-first-party` like so:
-
-```toml
-[tool.ruff]
-select = [
-    # Pyflakes
-    "F",
-    # Pycodestyle
-    "E",
-    "W",
-    # isort
-    "I001"
-]
-
-# Note: Ruff supports a top-level `src` option in lieu of isort's `src_paths` setting.
-src = ["src", "tests"]
-
-[tool.ruff.isort]
-known-first-party = ["my_module1", "my_module2"]
-```
 
 ## How does Ruff determine which of my imports are first-party, third-party, etc.?
 
-Ruff accepts a `src` option that in your `pyproject.toml`, `ruff.toml`, or `.ruff.toml` file, which
+Ruff accepts a `src` option that in your `pyproject.toml`, `ruff.toml`, or `.ruff.toml` file,
 specifies the directories that Ruff should consider when determining whether an import is
 first-party.
 
@@ -292,24 +300,44 @@ the `--config` option, in which case, the current working directory is used as t
 In this case, Ruff would only check the top-level directory. Instead, we can configure Ruff to
 consider `src` as a first-party source like so:
 
-```toml
-[tool.ruff]
-# All paths are relative to the project root, which is the directory containing the pyproject.toml.
-src = ["src"]
-```
+=== "pyproject.toml"
+
+    ```toml
+    [tool.ruff]
+    # Ruff supports a top-level `src` option in lieu of isort's `src_paths` setting.
+    # All paths are relative to the project root, which is the directory containing the pyproject.toml.
+    src = ["src"]
+    ```
+
+=== "ruff.toml"
+
+    ```toml
+    # Ruff supports a top-level `src` option in lieu of isort's `src_paths` setting.
+    # All paths are relative to the project root, which is the directory containing the pyproject.toml.
+    src = ["src"]
+    ```
 
 If your `pyproject.toml`, `ruff.toml`, or `.ruff.toml` extends another configuration file, Ruff
 will still use the directory containing your `pyproject.toml`, `ruff.toml`, or `.ruff.toml` file as
 the project root (as opposed to the directory of the file pointed to via the `extends` option).
 
-For example, if you add a `ruff.toml` to the `tests` directory in the above example, you'll want to
-explicitly set the `src` option in the extended configuration file:
+For example, if you add a configuration file to the `tests` directory in the above example, you'll
+want to explicitly set the `src` option in the extended configuration file:
 
-```toml
-# tests/ruff.toml
-extend = "../pyproject.toml"
-src = ["../src"]
-```
+=== "pyproject.toml"
+
+    ```toml
+    [tool.ruff]
+    extend = "../pyproject.toml"
+    src = ["../src"]
+    ```
+
+=== "ruff.toml"
+
+    ```toml
+    extend = "../pyproject.toml"
+    src = ["../src"]
+    ```
 
 Beyond this `src`-based detection, Ruff will also attempt to determine the current Python package
 for a given Python file, and mark imports from within the same package as first-party. For example,
@@ -317,25 +345,82 @@ above, `baz.py` would be identified as part of the Python package beginning at
 `./my_project/src/foo`, and so any imports in `baz.py` that begin with `foo` (like `import foo.bar`)
 would be considered first-party based on this same-package heuristic.
 
-For a detailed explanation, see the [contributing guide](contributing.md).
+For a detailed explanation of `src` resolution, see the [contributing guide](contributing.md).
+
+Ruff can also be configured to treat certain modules as (e.g.) always first-party, regardless of
+their location on the filesystem. For example, you can set [`known-first-party`](settings.md#lint_isort_known-first-party)
+like so:
+
+=== "pyproject.toml"
+
+    ```toml
+    [tool.ruff]
+    src = ["src", "tests"]
+
+    [tool.ruff.lint]
+    select = [
+        # Pyflakes
+        "F",
+        # Pycodestyle
+        "E",
+        "W",
+        # isort
+        "I001"
+    ]
+
+    [tool.ruff.lint.isort]
+    known-first-party = ["my_module1", "my_module2"]
+    ```
+
+=== "ruff.toml"
+
+    ```toml
+    src = ["src", "tests"]
+
+    [lint]
+    select = [
+        # Pyflakes
+        "F",
+        # Pycodestyle
+        "E",
+        "W",
+        # isort
+        "I001"
+    ]
+
+    [lint.isort]
+    known-first-party = ["my_module1", "my_module2"]
+    ```
+
+Ruff does not yet support all of isort's configuration options, though it does support many of
+them. You can find the supported settings in the [API reference](settings.md#lintisort).
 
 ## Does Ruff support Jupyter Notebooks?
 
 Ruff has built-in support for linting [Jupyter Notebooks](https://jupyter.org/).
 
 To opt in to linting Jupyter Notebook (`.ipynb`) files, add the `*.ipynb` pattern to your
-[`include`](settings.md#include) setting, like so:
+[`extend-include`](settings.md#extend-include) setting, like so:
 
-```toml
-[tool.ruff]
-include = ["*.py", "*.pyi", "**/pyproject.toml", "*.ipynb"]
-```
+=== "pyproject.toml"
+
+    ```toml
+    [tool.ruff]
+    extend-include = ["*.ipynb"]
+    ```
+
+=== "ruff.toml"
+
+    ```toml
+    extend-include = ["*.ipynb"]
+    ```
 
 This will prompt Ruff to discover Jupyter Notebook (`.ipynb`) files in any specified
-directories, and lint them accordingly.
+directories, then lint and format them accordingly.
 
 Alternatively, pass the notebook file(s) to `ruff` on the command-line directly. For example,
-`ruff check /path/to/notebook.ipynb` will always lint `notebook.ipynb`.
+`ruff check /path/to/notebook.ipynb` will always lint `notebook.ipynb`. Similarly,
+`ruff format /path/to/notebook.ipynb` will always format `notebook.ipynb`.
 
 Ruff also integrates with [nbQA](https://github.com/nbQA-dev/nbQA), a tool for running linters and
 code formatters over Jupyter Notebooks.
@@ -353,93 +438,171 @@ Found 3 errors.
 
 ## Does Ruff support NumPy- or Google-style docstrings?
 
-Yes! To enforce a docstring convention, add the following to your `pyproject.toml`:
+Yes! To enforce a docstring convention, add a [`convention`](settings.md#lint_pydocstyle_convention)
+setting following to your configuration file:
 
-```toml
-[tool.ruff.pydocstyle]
-convention = "google"  # Accepts: "google", "numpy", or "pep257".
-```
+=== "pyproject.toml"
+
+    ```toml
+    [tool.ruff.lint.pydocstyle]
+    convention = "google"  # Accepts: "google", "numpy", or "pep257".
+    ```
+
+=== "ruff.toml"
+
+    ```toml
+    [lint.pydocstyle]
+    convention = "google"  # Accepts: "google", "numpy", or "pep257".
+    ```
 
 For example, if you're coming from flake8-docstrings, and your originating configuration uses
 `--docstring-convention=numpy`, you'd instead set `convention = "numpy"` in your `pyproject.toml`,
 as above.
 
-Alongside `convention`, you'll want to explicitly enable the `D` rule code prefix, since the `D`
-rules are not enabled by default:
+Alongside [`convention`](settings.md#lint_pydocstyle_convention), you'll want to
+explicitly enable the `D` rule code prefix, since the `D` rules are not enabled by default:
 
-```toml
-[tool.ruff]
-select = [
-    "D",
-]
+=== "pyproject.toml"
 
-[tool.ruff.pydocstyle]
-convention = "google"
-```
+    ```toml
+    [tool.ruff.lint]
+    select = ["D"]
 
-Setting a `convention` force-disables any rules that are incompatible with that convention, no
-matter how they're provided, which avoids accidental incompatibilities and simplifies configuration.
-By default, no `convention` is set, and so the enabled rules are determined by the `select` setting
-alone.
+    [tool.ruff.lint.pydocstyle]
+    convention = "google"
+    ```
 
-## What is the "nursery"?
+=== "ruff.toml"
 
-The "nursery" is a collection of newer rules that are considered experimental or unstable.
+    ```toml
+    [lint]
+    select = ["D"]
 
-If a rule is marked as part of the "nursery", it can only be enabled via direct selection. For
-example, consider a hypothetical rule, `HYP001`. If `HYP001` were included in the "nursery", it
-could be enabled by adding the following to your `pyproject.toml`:
+    [lint.pydocstyle]
+    convention = "google"
+    ```
 
-```toml
-[tool.ruff]
-extend-select = ["HYP001"]
-```
+Enabling a [`convention`](settings.md#lint_pydocstyle_convention) will disable any rules that are not
+included in the specified convention. As such, the intended workflow is to enable a convention and
+then selectively enable or disable any additional rules on top of it:
 
-However, it would _not_ be enabled by selecting the `HYP` category, like so:
+=== "pyproject.toml"
 
-```toml
-[tool.ruff]
-extend-select = ["HYP"]
-```
+    ```toml
+    [tool.ruff.lint]
+    select = [
+        "D",
+        # Augment the convention by requiring an imperative mood for all docstrings.
+        "D401",
+    ]
 
-Similarly, it would _not_ be enabled via the `ALL` selector:
+    ignore = [
+        # Relax the convention by _not_ requiring documentation for every function parameter.
+        "D417",
+    ]
 
-```toml
-[tool.ruff]
-select = ["ALL"]
-```
+    [tool.ruff.lint.pydocstyle]
+    convention = "google"
+    ```
 
-(The "nursery" terminology comes from [Clippy](https://doc.rust-lang.org/nightly/clippy/), a similar
-tool for linting Rust code.)
+=== "ruff.toml"
 
-To see which rules are currently in the "nursery", visit the [rules reference](https://beta.ruff.rs/docs/rules/).
+    ```toml
+    [lint]
+    select = [
+        "D",
+        # Augment the convention by requiring an imperative mood for all docstrings.
+        "D401",
+    ]
+
+    ignore = [
+        # Relax the convention by _not_ requiring documentation for every function parameter.
+        "D417",
+    ]
+
+    [lint.pydocstyle]
+    convention = "google"
+    ```
+
+The PEP 257 convention includes all `D` errors apart from:
+[`D203`](rules/one-blank-line-before-class.md),
+[`D212`](rules/multi-line-summary-first-line.md),
+[`D213`](rules/multi-line-summary-second-line.md),
+[`D214`](rules/section-not-over-indented.md),
+[`D215`](rules/section-underline-not-over-indented.md),
+[`D404`](rules/docstring-starts-with-this.md),
+[`D405`](rules/capitalize-section-name.md),
+[`D406`](rules/new-line-after-section-name.md),
+[`D407`](rules/dashed-underline-after-section.md),
+[`D408`](rules/section-underline-after-name.md),
+[`D409`](rules/section-underline-matches-section-length.md),
+[`D410`](rules/no-blank-line-after-section.md),
+[`D411`](rules/no-blank-line-before-section.md),
+[`D413`](rules/no-blank-line-after-section.md),
+[`D415`](rules/ends-in-punctuation.md),
+[`D416`](rules/section-name-ends-in-colon.md), and
+[`D417`](rules/undocumented-param.md).
+
+The NumPy convention includes all `D` errors apart from:
+[`D107`](rules/undocumented-public-init.md),
+[`D203`](rules/one-blank-line-before-class.md),
+[`D212`](rules/multi-line-summary-first-line.md),
+[`D213`](rules/multi-line-summary-second-line.md),
+[`D402`](rules/no-signature.md),
+[`D413`](rules/no-blank-line-after-section.md),
+[`D415`](rules/ends-in-punctuation.md),
+[`D416`](rules/section-name-ends-in-colon.md), and
+[`D417`](rules/undocumented-param.md).
+
+The Google convention includes all `D` errors apart from:
+[`D203`](rules/one-blank-line-before-class.md),
+[`D204`](rules/one-blank-line-after-class.md),
+[`D213`](rules/multi-line-summary-second-line.md),
+[`D215`](rules/section-underline-not-over-indented.md),
+[`D400`](rules/ends-in-period.md),
+[`D401`](rules/non-imperative-mood.md),
+[`D404`](rules/docstring-starts-with-this.md),
+[`D406`](rules/new-line-after-section-name.md),
+[`D407`](rules/dashed-underline-after-section.md),
+[`D408`](rules/section-underline-after-name.md),
+[`D409`](rules/section-underline-matches-section-length.md), and
+[`D413`](rules/no-blank-line-after-section.md).
+
+By default, no [`convention`](settings.md#lint_pydocstyle_convention) is set, and so the enabled rules
+are determined by the [`select`](settings.md#lint_select) setting alone.
+
+## What is "preview"?
+
+Preview enables a collection of newer rules and fixes that are considered experimental or unstable.
+See the [preview documentation](preview.md) for more details; or, to see which rules are currently
+in preview, visit the [rules reference](rules.md).
 
 ## How can I tell what settings Ruff is using to check my code?
 
 Run `ruff check /path/to/code.py --show-settings` to view the resolved settings for a given file.
 
-## I want to use Ruff, but I don't want to use `pyproject.toml`. Is that possible?
+## I want to use Ruff, but I don't want to use `pyproject.toml`. What are my options?
 
-Yes! In lieu of a `pyproject.toml` file, you can use a `ruff.toml` file for configuration. The two
+In lieu of a `pyproject.toml` file, you can use a `ruff.toml` file for configuration. The two
 files are functionally equivalent and have an identical schema, with the exception that a `ruff.toml`
-file can omit the `[tool.ruff]` section header.
+file can omit the `[tool.ruff]` section header. For example:
 
-For example, given this `pyproject.toml`:
+=== "pyproject.toml"
 
 ```toml
 [tool.ruff]
 line-length = 88
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 ```
 
-You could instead use a `ruff.toml` file like so:
+=== "ruff.toml"
 
 ```toml
 line-length = 88
 
-[pydocstyle]
+[lint.pydocstyle]
 convention = "google"
 ```
 
@@ -447,41 +610,38 @@ Ruff doesn't currently support INI files, like `setup.cfg` or `tox.ini`.
 
 ## How can I change Ruff's default configuration?
 
-When no configuration file is found, Ruff will look for a user-specific `pyproject.toml` or
-`ruff.toml` file as a last resort. This behavior is similar to Flake8's `~/.config/flake8`.
+When no configuration file is found, Ruff will look for a user-specific `ruff.toml` file as a
+last resort. This behavior is similar to Flake8's `~/.config/flake8`.
 
-On macOS, Ruff expects that file to be located at `/Users/Alice/Library/Application Support/ruff/ruff.toml`.
+On macOS and Linux, Ruff expects that file to be located at `~/.config/ruff/ruff.toml`,
+and respects the `XDG_CONFIG_HOME` specification.
 
-On Linux, Ruff expects that file to be located at `/home/alice/.config/ruff/ruff.toml`.
+On Windows, Ruff expects that file to be located at `~\AppData\Roaming\ruff\ruff.toml`.
 
-On Windows, Ruff expects that file to be located at `C:\Users\Alice\AppData\Roaming\ruff\ruff.toml`.
+!!! note
+    Prior to `v0.5.0`, Ruff would read user-specific configuration from
+    `~/Library/Application Support/ruff/ruff.toml` on macOS. While Ruff will still respect
+    such configuration files, the use of `~/Library/Application Support` is considered deprecated.
 
-For more, see the [`dirs`](https://docs.rs/dirs/4.0.0/dirs/fn.config_dir.html) crate.
+For more, see the [`etcetera`](https://crates.io/crates/etcetera) crate.
 
-## Ruff tried to fix something — but it broke my code?
+## Ruff tried to fix something — but it broke my code. What's going on?
 
-Ruff's autofix is a best-effort mechanism. Given the dynamic nature of Python, it's difficult to
-have _complete_ certainty when making changes to code, even for the seemingly trivial fixes.
+Ruff labels fixes as "safe" and "unsafe". By default, Ruff will fix all violations for which safe
+fixes are available, while unsafe fixes can be enabled via the [`unsafe-fixes`](settings.md#unsafe-fixes)
+setting, or passing the [`--unsafe-fixes`](settings.md#unsafe-fixes) flag to `ruff check`. For
+more, see [the fix documentation](linter.md#fixes).
 
-In the future, Ruff will support enabling autofix behavior based on the safety of the patch.
+Even still, given the dynamic nature of Python, it's difficult to have _complete_ certainty when
+making changes to code, even for seemingly trivial fixes. If a "safe" fix breaks your code, please
+[file an Issue](https://github.com/astral-sh/ruff/issues/new).
 
-In the meantime, if you find that the autofix is too aggressive, you can disable it on a per-rule or
-per-category basis using the [`unfixable`](settings.md#unfixable) mechanic.
-For example, to disable autofix for some possibly-unsafe rules, you could add the following to your
-`pyproject.toml`:
-
-```toml
-[tool.ruff]
-unfixable = ["B", "SIM", "TRY", "RUF"]
-```
-
-If you find a case where Ruff's autofix breaks your code, please file an Issue!
-
-## How can I disable Ruff's color output?
+## How can I disable/force Ruff's color output?
 
 Ruff's color output is powered by the [`colored`](https://crates.io/crates/colored) crate, which
 attempts to automatically detect whether the output stream supports color. However, you can force
-colors off by setting the `NO_COLOR` environment variable to any value (e.g., `NO_COLOR=1`).
+colors off by setting the `NO_COLOR` environment variable to any value (e.g., `NO_COLOR=1`), or
+force colors on by setting `FORCE_COLOR` to any non-empty value (e.g. `FORCE_COLOR=1`).
 
 [`colored`](https://crates.io/crates/colored) also supports the `CLICOLOR` and `CLICOLOR_FORCE`
 environment variables (see the [spec](https://bixense.com/clicolors/)).

@@ -6,16 +6,22 @@ expression: parse_ast
     Expr(
         StmtExpr {
             range: 0..9,
-            value: Constant(
-                ExprConstant {
+            value: StringLiteral(
+                ExprStringLiteral {
                     range: 0..9,
-                    value: Str(
-                        StringConstant {
-                            value: "\u{7}",
-                            implicit_concatenated: false,
-                        },
-                    ),
-                    kind: None,
+                    value: StringLiteralValue {
+                        inner: Single(
+                            StringLiteral {
+                                range: 0..9,
+                                value: "\u{7}",
+                                flags: StringLiteralFlags {
+                                    quote_style: Double,
+                                    prefix: Empty,
+                                    triple_quoted: false,
+                                },
+                            },
+                        ),
+                    },
                 },
             ),
         },

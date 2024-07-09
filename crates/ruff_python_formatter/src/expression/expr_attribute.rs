@@ -1,16 +1,15 @@
 use ruff_formatter::{write, FormatRuleWithOptions};
-use ruff_python_ast::node::AnyNodeRef;
-use ruff_python_ast::{Constant, Expr, ExprAttribute, ExprConstant, Ranged};
+use ruff_python_ast::AnyNodeRef;
+use ruff_python_ast::{Expr, ExprAttribute, ExprNumberLiteral, Number};
 use ruff_python_trivia::{find_only_token_in_range, SimpleTokenKind};
-use ruff_text_size::TextRange;
+use ruff_text_size::{Ranged, TextRange};
 
-use crate::comments::{dangling_comments, SourceComment};
+use crate::comments::dangling_comments;
 use crate::expression::parentheses::{
     is_expression_parenthesized, NeedsParentheses, OptionalParentheses, Parentheses,
 };
 use crate::expression::CallChainLayout;
 use crate::prelude::*;
-use crate::FormatNodeRule;
 
 #[derive(Default)]
 pub struct FormatExprAttribute {
@@ -38,49 +37,44 @@ impl FormatNodeRule<ExprAttribute> for FormatExprAttribute {
         let call_chain_layout = self.call_chain_layout.apply_in_node(item, f);
 
         let format_inner = format_with(|f: &mut PyFormatter| {
-            let needs_parentheses = matches!(
-                value.as_ref(),
-                Expr::Constant(ExprConstant {
-                    value: Constant::Int(_) | Constant::Float(_),
-                    ..
-                })
-            );
+            let parenthesize_value =
+                is_base_ten_number_literal(value.as_ref(), f.context().source()) || {
+                    is_expression_parenthesized(
+                        value.into(),
+                        f.context().comments().ranges(),
+                        f.context().source(),
+                    )
+                };
 
-            if needs_parentheses {
-                value.format().with_options(Parentheses::Always).fmt(f)?;
-            } else if call_chain_layout == CallChainLayout::Fluent {
-                match value.as_ref() {
-                    Expr::Attribute(expr) => {
-                        expr.format().with_options(call_chain_layout).fmt(f)?;
-                    }
-                    Expr::Call(expr) => {
-                        expr.format().with_options(call_chain_layout).fmt(f)?;
-                        if call_chain_layout == CallChainLayout::Fluent {
-                            // Format the dot on its own line
+            if call_chain_layout == CallChainLayout::Fluent {
+                if parenthesize_value {
+                    // Don't propagate the call chain layout.
+                    value.format().with_options(Parentheses::Always).fmt(f)?;
+
+                    // Format the dot on its own line.
+                    soft_line_break().fmt(f)?;
+                } else {
+                    match value.as_ref() {
+                        Expr::Attribute(expr) => {
+                            expr.format().with_options(call_chain_layout).fmt(f)?;
+                        }
+                        Expr::Call(expr) => {
+                            expr.format().with_options(call_chain_layout).fmt(f)?;
                             soft_line_break().fmt(f)?;
                         }
-                    }
-                    Expr::Subscript(expr) => {
-                        expr.format().with_options(call_chain_layout).fmt(f)?;
-                        if call_chain_layout == CallChainLayout::Fluent {
-                            // Format the dot on its own line
+                        Expr::Subscript(expr) => {
+                            expr.format().with_options(call_chain_layout).fmt(f)?;
                             soft_line_break().fmt(f)?;
                         }
-                    }
-                    _ => {
-                        // This matches [`CallChainLayout::from_expression`]
-                        if is_expression_parenthesized(value.as_ref().into(), f.context().source())
-                        {
-                            value.format().with_options(Parentheses::Always).fmt(f)?;
-                            // Format the dot on its own line
-                            soft_line_break().fmt(f)?;
-                        } else {
-                            value.format().fmt(f)?;
+                        _ => {
+                            value.format().with_options(Parentheses::Never).fmt(f)?;
                         }
                     }
                 }
+            } else if parenthesize_value {
+                value.format().with_options(Parentheses::Always).fmt(f)?;
             } else {
-                value.format().fmt(f)?;
+                value.format().with_options(Parentheses::Never).fmt(f)?;
             }
 
             // Identify dangling comments before and after the dot:
@@ -114,7 +108,7 @@ impl FormatNodeRule<ExprAttribute> for FormatExprAttribute {
                 f,
                 [
                     dangling_comments(before_dot),
-                    text("."),
+                    token("."),
                     dangling_comments(after_dot),
                     attr.format()
                 ]
@@ -129,15 +123,6 @@ impl FormatNodeRule<ExprAttribute> for FormatExprAttribute {
             write!(f, [format_inner])
         }
     }
-
-    fn fmt_dangling_comments(
-        &self,
-        _dangling_comments: &[SourceComment],
-        _f: &mut PyFormatter,
-    ) -> FormatResult<()> {
-        // handle in `fmt_fields`
-        Ok(())
-    }
 }
 
 impl NeedsParentheses for ExprAttribute {
@@ -147,14 +132,43 @@ impl NeedsParentheses for ExprAttribute {
         context: &PyFormatContext,
     ) -> OptionalParentheses {
         // Checks if there are any own line comments in an attribute chain (a.b.c).
-        if CallChainLayout::from_expression(self.into(), context.source())
-            == CallChainLayout::Fluent
+        if CallChainLayout::from_expression(
+            self.into(),
+            context.comments().ranges(),
+            context.source(),
+        ) == CallChainLayout::Fluent
         {
             OptionalParentheses::Multiline
         } else if context.comments().has_dangling(self) {
             OptionalParentheses::Always
+        } else if is_expression_parenthesized(
+            self.value.as_ref().into(),
+            context.comments().ranges(),
+            context.source(),
+        ) {
+            OptionalParentheses::Never
         } else {
             self.value.needs_parentheses(self.into(), context)
         }
+    }
+}
+
+// Non Hex, octal or binary number literals need parentheses to disambiguate the attribute `.` from
+// a decimal point. Floating point numbers don't strictly need parentheses but it reads better (rather than 0.0.test()).
+fn is_base_ten_number_literal(expr: &Expr, source: &str) -> bool {
+    if let Some(ExprNumberLiteral { value, range }) = expr.as_number_literal_expr() {
+        match value {
+            Number::Float(_) => true,
+            Number::Int(_) => {
+                let text = &source[*range];
+                !matches!(
+                    text.as_bytes().get(0..2),
+                    Some([b'0', b'x' | b'X' | b'o' | b'O' | b'b' | b'B'])
+                )
+            }
+            Number::Complex { .. } => false,
+        }
+    } else {
+        false
     }
 }

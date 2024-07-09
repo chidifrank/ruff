@@ -1,13 +1,12 @@
 use ruff_formatter::{format_args, write};
 use ruff_python_ast::StmtMatch;
 
-use crate::comments::{leading_alternate_branch_comments, SourceComment};
+use crate::comments::leading_alternate_branch_comments;
 use crate::context::{NodeLevel, WithNodeLevel};
 use crate::expression::maybe_parenthesize_expression;
 use crate::expression::parentheses::Parenthesize;
 use crate::prelude::*;
 use crate::statement::clause::{clause_header, ClauseHeader};
-use crate::FormatNodeRule;
 
 #[derive(Default)]
 pub struct FormatStmtMatch;
@@ -30,7 +29,7 @@ impl FormatNodeRule<StmtMatch> for FormatStmtMatch {
             ClauseHeader::Match(item),
             dangling_item_comments,
             &format_args![
-                text("match"),
+                token("match"),
                 space(),
                 maybe_parenthesize_expression(subject, item, Parenthesize::IfBreaks),
             ],
@@ -62,15 +61,6 @@ impl FormatNodeRule<StmtMatch> for FormatStmtMatch {
             last_case = case;
         }
 
-        Ok(())
-    }
-
-    fn fmt_dangling_comments(
-        &self,
-        _dangling_comments: &[SourceComment],
-        _f: &mut PyFormatter,
-    ) -> FormatResult<()> {
-        // Handled as part of `fmt_fields`
         Ok(())
     }
 }

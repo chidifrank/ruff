@@ -4,6 +4,21 @@ expression: comments.debug(test_case.source_code)
 ---
 {
     Node {
+        kind: ExprNumberLiteral,
+        range: 30..32,
+        source: `10`,
+    }: {
+        "leading": [],
+        "dangling": [],
+        "trailing": [
+            SourceComment {
+                text: "# More comments",
+                position: EndOfLine,
+                formatted: false,
+            },
+        ],
+    },
+    Node {
         kind: ExprBinOp,
         range: 30..57,
         source: `10 + # More comments⏎`,
@@ -17,20 +32,5 @@ expression: comments.debug(test_case.source_code)
         ],
         "dangling": [],
         "trailing": [],
-    },
-    Node {
-        kind: ExprConstant,
-        range: 30..32,
-        source: `10`,
-    }: {
-        "leading": [],
-        "dangling": [],
-        "trailing": [
-            SourceComment {
-                text: "# More comments",
-                position: EndOfLine,
-                formatted: false,
-            },
-        ],
     },
 }

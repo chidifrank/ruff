@@ -13,9 +13,14 @@ license = { workspace = true }
 
 [lib]
 bench = false
+doctest = false
 
 [[bench]]
 name = "linter"
+harness = false
+
+[[bench]]
+name = "lexer"
 harness = false
 
 [[bench]]
@@ -26,23 +31,37 @@ harness = false
 name = "formatter"
 harness = false
 
+[[bench]]
+name = "red_knot"
+harness = false
+
 [dependencies]
-once_cell.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-url = "2.3.1"
-ureq = "2.6.2"
+once_cell = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+ureq = { workspace = true }
+criterion = { workspace = true, default-features = false }
+codspeed-criterion-compat = { workspace = true, default-features = false, optional = true }
 
 [dev-dependencies]
-ruff.path = "../ruff"
-ruff_python_ast.path = "../ruff_python_ast"
-ruff_python_formatter = { path = "../ruff_python_formatter" }
-ruff_python_index = { path = "../ruff_python_index" }
-ruff_python_parser = { path = "../ruff_python_parser" }
-criterion = { version = "0.5.1"}
+ruff_db = { workspace = true }
+ruff_linter = { workspace = true }
+ruff_python_ast = { workspace = true }
+ruff_python_formatter = { workspace = true }
+ruff_python_parser = { workspace = true }
+ruff_python_trivia = { workspace = true }
+red_knot = { workspace = true }
+red_knot_module_resolver = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+codspeed = ["codspeed-criterion-compat"]
 
 [target.'cfg(target_os = "windows")'.dev-dependencies]
-mimalloc = "0.1.34"
+mimalloc = { workspace = true }
 
 [target.'cfg(all(not(target_os = "windows"), not(target_os = "openbsd"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "powerpc64")))'.dev-dependencies]
-tikv-jemallocator = "0.5.0"
+tikv-jemallocator = { workspace = true }

@@ -1,0 +1,100 @@
+---
+source: crates/ruff_linter/src/rules/pycodestyle/mod.rs
+---
+E30.py:798:1: E305 [*] Expected 2 blank lines after class or function definition, found (1)
+    |
+797 |     # another comment
+798 | fn()
+    | ^^ E305
+799 | # end
+    |
+    = help: Add missing blank line(s)
+
+ℹ Safe fix
+795 795 |     # comment
+796 796 | 
+797 797 |     # another comment
+    798 |+
+    799 |+
+798 800 | fn()
+799 801 | # end
+800 802 | 
+
+E30.py:809:1: E305 [*] Expected 2 blank lines after class or function definition, found (1)
+    |
+808 |     # another comment
+809 | a = 1
+    | ^ E305
+810 | # end
+    |
+    = help: Add missing blank line(s)
+
+ℹ Safe fix
+806 806 |     # comment
+807 807 | 
+808 808 |     # another comment
+    809 |+
+    810 |+
+809 811 | a = 1
+810 812 | # end
+811 813 | 
+
+E30.py:821:1: E305 [*] Expected 2 blank lines after class or function definition, found (1)
+    |
+819 |     # another comment
+820 | 
+821 | try:
+    | ^^^ E305
+822 |     fn()
+823 | except Exception:
+    |
+    = help: Add missing blank line(s)
+
+ℹ Safe fix
+818 818 | 
+819 819 |     # another comment
+820 820 | 
+    821 |+
+821 822 | try:
+822 823 |     fn()
+823 824 | except Exception:
+
+E30.py:833:1: E305 [*] Expected 2 blank lines after class or function definition, found (1)
+    |
+832 | # Two spaces before comments, too.
+833 | if a():
+    | ^^ E305
+834 |     a()
+835 | # end
+    |
+    = help: Add missing blank line(s)
+
+ℹ Safe fix
+830 830 |     print()
+831 831 | 
+832 832 | # Two spaces before comments, too.
+    833 |+
+    834 |+
+833 835 | if a():
+834 836 |     a()
+835 837 | # end
+
+E30.py:846:1: E305 [*] Expected 2 blank lines after class or function definition, found (1)
+    |
+844 |     blah, blah
+845 | 
+846 | if __name__ == '__main__':
+    | ^^ E305
+847 |     main()
+848 | # end
+    |
+    = help: Add missing blank line(s)
+
+ℹ Safe fix
+843 843 | def main():
+844 844 |     blah, blah
+845 845 | 
+    846 |+
+846 847 | if __name__ == '__main__':
+847 848 |     main()
+848 849 | # end

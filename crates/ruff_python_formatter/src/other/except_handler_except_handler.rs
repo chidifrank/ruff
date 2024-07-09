@@ -1,13 +1,11 @@
+use ruff_formatter::write;
 use ruff_formatter::FormatRuleWithOptions;
-use ruff_formatter::{write, Buffer, FormatResult};
 use ruff_python_ast::ExceptHandlerExceptHandler;
 
-use crate::comments::SourceComment;
 use crate::expression::maybe_parenthesize_expression;
 use crate::expression::parentheses::Parenthesize;
 use crate::prelude::*;
 use crate::statement::clause::{clause_body, clause_header, ClauseHeader};
-use crate::{FormatNodeRule, PyFormatter};
 
 #[derive(Copy, Clone, Default)]
 pub enum ExceptHandlerKind {
@@ -58,10 +56,10 @@ impl FormatNodeRule<ExceptHandlerExceptHandler> for FormatExceptHandlerExceptHan
                         write!(
                             f,
                             [
-                                text("except"),
+                                token("except"),
                                 match self.except_handler_kind {
                                     ExceptHandlerKind::Regular => None,
-                                    ExceptHandlerKind::Starred => Some(text("*")),
+                                    ExceptHandlerKind::Starred => Some(token("*")),
                                 }
                             ]
                         )?;
@@ -79,7 +77,7 @@ impl FormatNodeRule<ExceptHandlerExceptHandler> for FormatExceptHandlerExceptHan
                                 ]
                             )?;
                             if let Some(name) = name {
-                                write!(f, [space(), text("as"), space(), name.format()])?;
+                                write!(f, [space(), token("as"), space(), name.format()])?;
                             }
                         }
 
@@ -89,14 +87,5 @@ impl FormatNodeRule<ExceptHandlerExceptHandler> for FormatExceptHandlerExceptHan
                 clause_body(body, dangling_comments),
             ]
         )
-    }
-
-    fn fmt_dangling_comments(
-        &self,
-        _dangling_comments: &[SourceComment],
-        _f: &mut PyFormatter,
-    ) -> FormatResult<()> {
-        // dangling comments are formatted as part of fmt_fields
-        Ok(())
     }
 }

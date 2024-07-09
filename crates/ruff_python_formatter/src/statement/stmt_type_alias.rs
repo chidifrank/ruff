@@ -1,11 +1,11 @@
-use crate::comments::{SourceComment, SuppressionKind};
 use ruff_formatter::write;
 use ruff_python_ast::StmtTypeAlias;
 
-use crate::expression::maybe_parenthesize_expression;
-use crate::expression::parentheses::Parenthesize;
-use crate::prelude::*;
-use crate::FormatNodeRule;
+use crate::comments::SourceComment;
+use crate::statement::stmt_assign::{
+    AnyAssignmentOperator, AnyBeforeOperator, FormatStatementsLastExpression,
+};
+use crate::{has_skip_comment, prelude::*};
 
 #[derive(Default)]
 pub struct FormatStmtTypeAlias;
@@ -19,19 +19,25 @@ impl FormatNodeRule<StmtTypeAlias> for FormatStmtTypeAlias {
             range: _,
         } = item;
 
-        write!(f, [text("type"), space(), name.as_ref().format()])?;
+        write!(f, [token("type"), space(), name.as_ref().format()])?;
 
         if let Some(type_params) = type_params {
-            write!(f, [type_params.format()])?;
+            return FormatStatementsLastExpression::RightToLeft {
+                before_operator: AnyBeforeOperator::TypeParams(type_params),
+                operator: AnyAssignmentOperator::Assign,
+                value,
+                statement: item.into(),
+            }
+            .fmt(f);
         }
 
         write!(
             f,
             [
                 space(),
-                text("="),
+                token("="),
                 space(),
-                maybe_parenthesize_expression(value, item, Parenthesize::IfBreaks)
+                FormatStatementsLastExpression::left_to_right(value, item)
             ]
         )
     }
@@ -41,6 +47,6 @@ impl FormatNodeRule<StmtTypeAlias> for FormatStmtTypeAlias {
         trailing_comments: &[SourceComment],
         context: &PyFormatContext,
     ) -> bool {
-        SuppressionKind::has_skip_comment(trailing_comments, context.source())
+        has_skip_comment(trailing_comments, context.source())
     }
 }

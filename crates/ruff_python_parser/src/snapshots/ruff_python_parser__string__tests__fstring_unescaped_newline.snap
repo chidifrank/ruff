@@ -1,6 +1,6 @@
 ---
 source: crates/ruff_python_parser/src/string.rs
-expression: parse_ast
+expression: suite
 ---
 [
     Expr(
@@ -9,36 +9,43 @@ expression: parse_ast
             value: FString(
                 ExprFString {
                     range: 0..11,
-                    values: [
-                        Constant(
-                            ExprConstant {
-                                range: 4..5,
-                                value: Str(
-                                    StringConstant {
-                                        value: "\n",
-                                        implicit_concatenated: false,
+                    value: FStringValue {
+                        inner: Single(
+                            FString(
+                                FString {
+                                    range: 0..11,
+                                    elements: [
+                                        Literal(
+                                            FStringLiteralElement {
+                                                range: 4..5,
+                                                value: "\n",
+                                            },
+                                        ),
+                                        Expression(
+                                            FStringExpressionElement {
+                                                range: 5..8,
+                                                expression: Name(
+                                                    ExprName {
+                                                        range: 6..7,
+                                                        id: Name("x"),
+                                                        ctx: Load,
+                                                    },
+                                                ),
+                                                debug_text: None,
+                                                conversion: None,
+                                                format_spec: None,
+                                            },
+                                        ),
+                                    ],
+                                    flags: FStringFlags {
+                                        quote_style: Double,
+                                        prefix: Regular,
+                                        triple_quoted: true,
                                     },
-                                ),
-                                kind: None,
-                            },
+                                },
+                            ),
                         ),
-                        FormattedValue(
-                            ExprFormattedValue {
-                                range: 5..8,
-                                value: Name(
-                                    ExprName {
-                                        range: 6..7,
-                                        id: "x",
-                                        ctx: Load,
-                                    },
-                                ),
-                                debug_text: None,
-                                conversion: None,
-                                format_spec: None,
-                            },
-                        ),
-                    ],
-                    implicit_concatenated: false,
+                    },
                 },
             ),
         },

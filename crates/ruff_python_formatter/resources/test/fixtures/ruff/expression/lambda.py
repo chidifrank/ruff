@@ -118,3 +118,113 @@ lambda a, /, c: a
     # 4
     None # 5
 )
+
+(
+    lambda
+    # comment
+    *x: x
+)
+
+(
+    lambda
+    # comment 1
+    *
+    # comment 2
+    x:
+    # comment 3
+    x
+)
+
+(
+    lambda # comment 1
+    * # comment 2
+    x: # comment 3
+    x
+)
+
+lambda *x\
+    :x
+
+(
+    lambda
+    # comment
+    *\
+        x: x
+)
+
+lambda: ( # comment
+    x)
+
+(
+    lambda:  # comment
+    x
+)
+
+(
+    lambda:
+    # comment
+    x
+)
+
+(
+    lambda  # comment
+    :
+    x
+)
+
+(
+    lambda
+    # comment
+    :
+    x
+)
+
+(
+    lambda:  # comment
+    (  # comment
+        x
+    )
+)
+
+(
+    lambda  # 1
+    # 2
+    x  # 3
+    # 4
+    :  # 5
+    # 6
+    x
+)
+
+(
+    lambda
+    x,
+    # comment
+    y:
+    z
+)
+
+lambda self, araa, kkkwargs=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa(*args, **kwargs), e=1, f=2, g=2: d
+
+# Regression tests for https://github.com/astral-sh/ruff/issues/8179
+def a():
+    return b(
+        c,
+        d,
+        e,
+        f=lambda self, *args, **kwargs: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa(
+            *args, **kwargs
+        ),
+    )
+
+def a():
+    return b(
+        c,
+        d,
+        e,
+        f=lambda self, araa, kkkwargs,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
+                 args,kwargs,
+                 e=1, f=2, g=2: d,
+        g = 10
+    )
+

@@ -1,8 +1,8 @@
-use ruff_formatter::{write, Buffer, FormatResult};
-use ruff_python_ast::node::AnyNodeRef;
+use ruff_formatter::write;
+use ruff_python_ast::AnyNodeRef;
 use ruff_python_ast::PatternMatchStar;
 
-use crate::comments::{dangling_comments, SourceComment};
+use crate::comments::dangling_comments;
 use crate::expression::parentheses::{NeedsParentheses, OptionalParentheses};
 use crate::prelude::*;
 
@@ -16,21 +16,12 @@ impl FormatNodeRule<PatternMatchStar> for FormatPatternMatchStar {
         let comments = f.context().comments().clone();
         let dangling = comments.dangling(item);
 
-        write!(f, [text("*"), dangling_comments(dangling)])?;
+        write!(f, [token("*"), dangling_comments(dangling)])?;
 
         match name {
             Some(name) => write!(f, [name.format()]),
-            None => write!(f, [text("_")]),
+            None => write!(f, [token("_")]),
         }
-    }
-
-    fn fmt_dangling_comments(
-        &self,
-        _dangling_comments: &[SourceComment],
-        _f: &mut PyFormatter,
-    ) -> FormatResult<()> {
-        // Handled by `fmt_fields`
-        Ok(())
     }
 }
 

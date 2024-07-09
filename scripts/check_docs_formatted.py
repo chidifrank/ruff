@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Check code snippets in docs are formatted by black."""
+
 from __future__ import annotations
 
 import argparse
@@ -32,7 +33,13 @@ KNOWN_FORMATTING_VIOLATIONS = [
     "bad-quotes-docstring",
     "bad-quotes-inline-string",
     "bad-quotes-multiline-string",
+    "blank-line-after-decorator",
+    "blank-line-between-methods",
+    "blank-lines-after-function-or-class",
+    "blank-lines-before-nested-definition",
+    "blank-lines-top-level",
     "explicit-string-concatenation",
+    "f-string-missing-placeholders",
     "indent-with-spaces",
     "indentation-with-invalid-multiple",
     "line-too-long",
@@ -55,16 +62,21 @@ KNOWN_FORMATTING_VIOLATIONS = [
     "multiple-statements-on-one-line-semicolon",
     "no-blank-line-before-function",
     "no-indented-block-comment",
+    "no-return-argument-annotation-in-stub",
     "no-space-after-block-comment",
     "no-space-after-inline-comment",
+    "non-empty-stub-body",
     "one-blank-line-after-class",
     "over-indentation",
     "over-indented",
+    "pass-statement-stub-body",
     "prohibited-trailing-comma",
+    "redundant-backslash",
     "shebang-leading-whitespace",
     "surrounding-whitespace",
-    "tab-indentation",
     "too-few-spaces-before-inline-comment",
+    "too-many-blank-lines",
+    "too-many-boolean-expressions",
     "trailing-comma-on-bare-tuple",
     "triple-single-quotes",
     "under-indentation",
@@ -72,7 +84,9 @@ KNOWN_FORMATTING_VIOLATIONS = [
     "unexpected-spaces-around-keyword-parameter-equals",
     "unicode-kind-prefix",
     "unnecessary-class-parentheses",
+    "unnecessary-escaped-quote",
     "useless-semicolon",
+    "whitespace-after-decorator",
     "whitespace-after-open-bracket",
     "whitespace-before-close-bracket",
     "whitespace-before-parameters",
@@ -93,6 +107,7 @@ KNOWN_PARSE_ERRORS = [
     "tab-after-operator",
     "tab-before-keyword",
     "tab-before-operator",
+    "too-many-newlines-at-end-of-file",
     "trailing-whitespace",
     "unexpected-indentation",
 ]

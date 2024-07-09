@@ -1,9 +1,9 @@
 use ruff_formatter::{format_args, write};
-use ruff_python_ast::node::AnyNodeRef;
+use ruff_python_ast::AnyNodeRef;
 use ruff_python_ast::PatternMatchMapping;
-use ruff_python_ast::{Expr, Identifier, Pattern, Ranged};
+use ruff_python_ast::{Expr, Identifier, Pattern};
 use ruff_python_trivia::{SimpleTokenKind, SimpleTokenizer};
-use ruff_text_size::TextRange;
+use ruff_text_size::{Ranged, TextRange};
 
 use crate::comments::{leading_comments, trailing_comments, SourceComment};
 use crate::expression::parentheses::{
@@ -90,15 +90,6 @@ impl FormatNodeRule<PatternMatchMapping> for FormatPatternMatchMapping {
             .with_dangling_comments(open_parenthesis_comments)
             .fmt(f)
     }
-
-    fn fmt_dangling_comments(
-        &self,
-        _dangling_comments: &[SourceComment],
-        _f: &mut PyFormatter,
-    ) -> FormatResult<()> {
-        // Handled by `fmt_fields`
-        Ok(())
-    }
 }
 
 impl NeedsParentheses for PatternMatchMapping {
@@ -130,7 +121,7 @@ impl Format<PyFormatContext<'_>> for RestPattern<'_> {
             f,
             [
                 leading_comments(self.comments),
-                text("**"),
+                token("**"),
                 self.identifier.format()
             ]
         )
@@ -156,7 +147,7 @@ impl Format<PyFormatContext<'_>> for KeyPatternPair<'_> {
             f,
             [group(&format_args![
                 self.key.format(),
-                text(":"),
+                token(":"),
                 space(),
                 self.pattern.format()
             ])]
@@ -175,9 +166,7 @@ fn find_double_star(pattern: &PatternMatchMapping, source: &str) -> Option<(Text
     } = pattern;
 
     // If there's no `rest` element, there's no `**`.
-    let Some(rest) = rest else {
-        return None;
-    };
+    let rest = rest.as_ref()?;
 
     let mut tokenizer =
         SimpleTokenizer::starts_at(patterns.last().map_or(pattern.start(), Ranged::end), source);

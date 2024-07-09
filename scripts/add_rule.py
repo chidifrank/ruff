@@ -9,6 +9,7 @@ Example usage:
         --code 807 \
         --linter flake8-pie
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,15 +24,13 @@ def main(*, name: str, prefix: str, code: str, linter: str) -> None:
     filestem = f"{prefix}{code}" if linter != "pylint" else snake_case(name)
     with (
         ROOT_DIR
-        / "crates/ruff/resources/test/fixtures"
+        / "crates/ruff_linter/resources/test/fixtures"
         / dir_name(linter)
         / f"{filestem}.py"
-    ).open(
-        "a",
-    ):
+    ).open("a"):
         pass
 
-    plugin_module = ROOT_DIR / "crates/ruff/src/rules" / dir_name(linter)
+    plugin_module = ROOT_DIR / "crates/ruff_linter/src/rules" / dir_name(linter)
     rule_name_snake = snake_case(name)
 
     # Add the relevant `#testcase` macro.
@@ -128,7 +127,7 @@ pub(crate) fn {rule_name_snake}(checker: &mut Checker) {{}}
         )
 
     text = ""
-    with (ROOT_DIR / "crates/ruff/src/codes.rs").open("r") as fp:
+    with (ROOT_DIR / "crates/ruff_linter/src/codes.rs").open("r") as fp:
         while (line := next(fp)).strip() != f"// {linter}":
             text += line
         text += line
@@ -138,16 +137,16 @@ pub(crate) fn {rule_name_snake}(checker: &mut Checker) {{}}
             lines.append(line)
 
         variant = pascal_case(linter)
-        rule = f"""rules::{linter.split(" ")[0]}::rules::{name}"""
+        linter_name = linter.split(" ")[0].replace("-", "_")
+        rule = f"""rules::{linter_name}::rules::{name}"""
         lines.append(
-            " " * 8
-            + f"""({variant}, "{code}") => (RuleGroup::Unspecified, {rule}),\n""",
+            " " * 8 + f"""({variant}, "{code}") => (RuleGroup::Preview, {rule}),\n""",
         )
         lines.sort()
         text += "".join(lines)
         text += "\n"
         text += fp.read()
-    with (ROOT_DIR / "crates/ruff/src/codes.rs").open("w") as fp:
+    with (ROOT_DIR / "crates/ruff_linter/src/codes.rs").open("w") as fp:
         fp.write(text)
 
     _rustfmt(rules_mod)

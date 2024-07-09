@@ -3,7 +3,7 @@ source: crates/ruff_python_formatter/tests/fixtures.rs
 input_file: crates/ruff_python_formatter/resources/test/fixtures/ruff/expression/string.py
 ---
 ## Input
-```py
+```python
 "' test"
 '" test'
 
@@ -136,19 +136,35 @@ test_particular = [
 x = ("""aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa""" """bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb""")
 x = (f"""aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa""" f"""bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb""")
 x = (b"""aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa""" b"""bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb""")
+
+# https://github.com/astral-sh/ruff/issues/7460
+trailing_preferred_quote_texts = [''' "''', ''' ""''', ''' """''', ''' """"''']
+
+a = f"""\x1F"""
+a = """\x1F"""
+a = """\\x1F"""
+a = """\\\x1F"""
 ```
 
 ## Outputs
 ### Output 1
 ```
-indent-style            = Spaces, size: 4
-line-width              = 88
-quote-style             = Double
-magic-trailing-comma    = Respect
+indent-style               = space
+line-width                 = 88
+indent-width               = 4
+quote-style                = Double
+line-ending                = LineFeed
+magic-trailing-comma       = Respect
+docstring-code             = Disabled
+docstring-code-line-width  = "dynamic"
+preview                    = Disabled
+target_version             = Py38
+source_type                = Python
 ```
 
-```py
+```python
 "' test"
+
 '" test'
 
 '" test'
@@ -239,8 +255,7 @@ String \"\"\"
 )
 
 if (
-    a
-    + "Let's"
+    a + "Let's"
     "start"
     "with"
     "a"
@@ -305,19 +320,35 @@ x = (
     b"""aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"""
     b"""bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"""
 )
+
+# https://github.com/astral-sh/ruff/issues/7460
+trailing_preferred_quote_texts = [''' "''', ''' ""''', ''' """''', ''' """"''']
+
+a = f"""\x1f"""
+a = """\x1f"""
+a = """\\x1F"""
+a = """\\\x1f"""
 ```
 
 
 ### Output 2
 ```
-indent-style            = Spaces, size: 4
-line-width              = 88
-quote-style             = Single
-magic-trailing-comma    = Respect
+indent-style               = space
+line-width                 = 88
+indent-width               = 4
+quote-style                = Single
+line-ending                = LineFeed
+magic-trailing-comma       = Respect
+docstring-code             = Disabled
+docstring-code-line-width  = "dynamic"
+preview                    = Disabled
+target_version             = Py38
+source_type                = Python
 ```
 
-```py
+```python
 "' test"
+
 '" test'
 
 '" test'
@@ -356,17 +387,17 @@ if True:
     'This string will not include \
         backslashes or newline characters.'
 
-'''Multiline
+"""Multiline
 String \"
-'''
+"""
 
-'''Multiline
+"""Multiline
 String \'
-'''
+"""
 
-'''Multiline
+"""Multiline
 String ""
-'''
+"""
 
 '''Multiline
 String """
@@ -382,9 +413,9 @@ String '''
 """Multiline
 String '"""
 
-'''Multiline
+"""Multiline
 String \"\"\"
-'''
+"""
 
 # String continuation
 
@@ -408,8 +439,7 @@ String \"\"\"
 )
 
 if (
-    a
-    + "Let's"
+    a + "Let's"
     'start'
     'with'
     'a'
@@ -463,17 +493,25 @@ test_particular = [
 
 # Regression test for https://github.com/astral-sh/ruff/issues/5893
 x = (
-    '''aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'''
-    '''bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'''
+    """aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"""
+    """bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"""
 )
 x = (
-    f'''aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'''
-    f'''bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'''
+    f"""aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"""
+    f"""bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"""
 )
 x = (
-    b'''aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'''
-    b'''bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'''
+    b"""aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"""
+    b"""bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"""
 )
+
+# https://github.com/astral-sh/ruff/issues/7460
+trailing_preferred_quote_texts = [''' "''', ''' ""''', ''' """''', ''' """"''']
+
+a = f"""\x1f"""
+a = """\x1f"""
+a = """\\x1F"""
+a = """\\\x1f"""
 ```
 
 

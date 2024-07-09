@@ -1,9 +1,8 @@
-use crate::prelude::*;
-use ruff_python_ast::node::AnyNodeRef;
-use ruff_python_ast::{Constant, PatternMatchSingleton};
+use ruff_python_ast::AnyNodeRef;
+use ruff_python_ast::{PatternMatchSingleton, Singleton};
 
 use crate::expression::parentheses::{NeedsParentheses, OptionalParentheses};
-use crate::{FormatNodeRule, PyFormatter};
+use crate::prelude::*;
 
 #[derive(Default)]
 pub struct FormatPatternMatchSingleton;
@@ -11,10 +10,9 @@ pub struct FormatPatternMatchSingleton;
 impl FormatNodeRule<PatternMatchSingleton> for FormatPatternMatchSingleton {
     fn fmt_fields(&self, item: &PatternMatchSingleton, f: &mut PyFormatter) -> FormatResult<()> {
         match item.value {
-            Constant::None => text("None").fmt(f),
-            Constant::Bool(true) => text("True").fmt(f),
-            Constant::Bool(false) => text("False").fmt(f),
-            _ => unreachable!(),
+            Singleton::None => token("None").fmt(f),
+            Singleton::True => token("True").fmt(f),
+            Singleton::False => token("False").fmt(f),
         }
     }
 }

@@ -5,6 +5,8 @@ use ruff_text_size::{TextLen, TextSize};
 pub const EOF_CHAR: char = '\0';
 
 /// A [`Cursor`] over a string.
+///
+/// Based on [`rustc`'s `Cursor`](https://github.com/rust-lang/rust/blob/d1b7355d3d7b4ead564dbecb1d240fcc74fff21b/compiler/rustc_lexer/src/cursor.rs)
 #[derive(Debug, Clone)]
 pub struct Cursor<'a> {
     chars: Chars<'a>,
@@ -44,7 +46,7 @@ impl<'a> Cursor<'a> {
         self.chars.clone().next_back().unwrap_or(EOF_CHAR)
     }
 
-    // SAFETY: THe `source.text_len` call in `new` would panic if the string length is larger than a `u32`.
+    // SAFETY: The `source.text_len` call in `new` would panic if the string length is larger than a `u32`.
     #[allow(clippy::cast_possible_truncation)]
     pub fn text_len(&self) -> TextSize {
         TextSize::new(self.chars.as_str().len() as u32)

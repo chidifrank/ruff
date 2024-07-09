@@ -1,6 +1,7 @@
 //! Generate Markdown documentation for applicable rules.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 
@@ -8,9 +9,10 @@ use anyhow::Result;
 use regex::{Captures, Regex};
 use strum::IntoEnumIterator;
 
-use ruff::registry::{Linter, Rule, RuleNamespace};
-use ruff::settings::options::Options;
-use ruff_diagnostics::AutofixKind;
+use ruff_diagnostics::FixAvailability;
+use ruff_linter::registry::{Linter, Rule, RuleNamespace};
+use ruff_workspace::options::Options;
+use ruff_workspace::options_base::{OptionEntry, OptionsMetadata};
 
 use crate::ROOT_DIR;
 
@@ -25,8 +27,8 @@ pub(crate) fn main(args: &Args) -> Result<()> {
     for rule in Rule::iter() {
         if let Some(explanation) = rule.explanation() {
             let mut output = String::new();
+
             output.push_str(&format!("# {} ({})", rule.as_ref(), rule.noqa_code()));
-            output.push('\n');
             output.push('\n');
 
             let (linter, _) = Linter::parse_code(&rule.noqa_code().to_string()).unwrap();
@@ -36,25 +38,45 @@ pub(crate) fn main(args: &Args) -> Result<()> {
                 output.push('\n');
             }
 
-            let autofix = rule.autofixable();
-            if matches!(autofix, AutofixKind::Always | AutofixKind::Sometimes) {
-                output.push_str(&autofix.to_string());
+            if rule.is_deprecated() {
+                output.push_str(
+                    r"**Warning: This rule is deprecated and will be removed in a future release.**",
+                );
                 output.push('\n');
                 output.push('\n');
             }
 
-            if rule.is_nursery() {
-                output.push_str(&format!(
-                    r#"This rule is part of the **nursery**, a collection of newer lints that are
-still under development. As such, it must be enabled by explicitly selecting
-{}."#,
-                    rule.noqa_code()
-                ));
+            if rule.is_removed() {
+                output.push_str(
+                    r"**Warning: This rule has been removed and its documentation is only available for historical reasons.**",
+                );
                 output.push('\n');
                 output.push('\n');
             }
 
-            process_documentation(explanation.trim(), &mut output);
+            let fix_availability = rule.fixable();
+            if matches!(
+                fix_availability,
+                FixAvailability::Always | FixAvailability::Sometimes
+            ) {
+                output.push_str(&fix_availability.to_string());
+                output.push('\n');
+                output.push('\n');
+            }
+
+            if rule.is_preview() {
+                output.push_str(
+                    r"This rule is unstable and in [preview](../preview.md). The `--preview` flag is required for use.",
+                );
+                output.push('\n');
+                output.push('\n');
+            }
+
+            process_documentation(
+                explanation.trim(),
+                &mut output,
+                &rule.noqa_code().to_string(),
+            );
 
             let filename = PathBuf::from(ROOT_DIR)
                 .join("docs")
@@ -73,15 +95,16 @@ still under development. As such, it must be enabled by explicitly selecting
     Ok(())
 }
 
-fn process_documentation(documentation: &str, out: &mut String) {
+fn process_documentation(documentation: &str, out: &mut String, rule_name: &str) {
     let mut in_options = false;
     let mut after = String::new();
+    let mut referenced_options = HashSet::new();
 
     // HACK: This is an ugly regex hack that's necessary because mkdocs uses
     // a non-CommonMark-compliant Markdown parser, which doesn't support code
     // tags in link definitions
     // (see https://github.com/Python-Markdown/markdown/issues/280).
-    let documentation = Regex::new(r"\[`([^`]*?)`]($|[^\[])").unwrap().replace_all(
+    let documentation = Regex::new(r"\[`([^`]*?)`]($|[^\[(])").unwrap().replace_all(
         documentation,
         |caps: &Captures| {
             format!(
@@ -99,14 +122,22 @@ fn process_documentation(documentation: &str, out: &mut String) {
             if let Some(rest) = line.strip_prefix("- `") {
                 let option = rest.trim_end().trim_end_matches('`');
 
-                assert!(
-                    Options::metadata().get(option).is_some(),
-                    "unknown option {option}"
-                );
+                match Options::metadata().find(option) {
+                    Some(OptionEntry::Field(field)) => {
+                        if field.deprecated.is_some() {
+                            eprintln!("Rule {rule_name} references deprecated option {option}.");
+                        }
+                    }
+                    Some(_) => {}
+                    None => {
+                        panic!("Unknown option {option} referenced by rule {rule_name}");
+                    }
+                }
 
-                let anchor = option.replace('.', "-");
+                let anchor = option.replace('.', "_");
                 out.push_str(&format!("- [`{option}`][{option}]\n"));
-                after.push_str(&format!("[{option}]: ../../settings#{anchor}\n"));
+                after.push_str(&format!("[{option}]: ../settings.md#{anchor}\n"));
+                referenced_options.insert(option);
 
                 continue;
             }
@@ -114,6 +145,20 @@ fn process_documentation(documentation: &str, out: &mut String) {
 
         out.push_str(line);
     }
+
+    let re = Regex::new(r"\[`([^`]*?)`]\[(.*?)]").unwrap();
+    for (_, [option, _]) in re.captures_iter(&documentation).map(|c| c.extract()) {
+        if let Some(OptionEntry::Field(field)) = Options::metadata().find(option) {
+            if referenced_options.insert(option) {
+                let anchor = option.replace('.', "_");
+                after.push_str(&format!("[{option}]: ../settings.md#{anchor}\n"));
+            }
+            if field.deprecated.is_some() {
+                eprintln!("Rule {rule_name} references deprecated option {option}.");
+            }
+        }
+    }
+
     if !after.is_empty() {
         out.push('\n');
         out.push('\n');
@@ -130,32 +175,33 @@ mod tests {
         let mut output = String::new();
         process_documentation(
             "
-See also [`mccabe.max-complexity`] and [`task-tags`].
-Something [`else`][other].
+See also [`lint.mccabe.max-complexity`] and [`lint.task-tags`].
+Something [`else`][other]. Some [link](https://example.com).
 
 ## Options
 
-- `task-tags`
-- `mccabe.max-complexity`
+- `lint.task-tags`
+- `lint.mccabe.max-complexity`
 
 [other]: http://example.com.",
             &mut output,
+            "example",
         );
         assert_eq!(
             output,
             "
-See also [`mccabe.max-complexity`][mccabe.max-complexity] and [`task-tags`][task-tags].
-Something [`else`][other].
+See also [`lint.mccabe.max-complexity`][lint.mccabe.max-complexity] and [`lint.task-tags`][lint.task-tags].
+Something [`else`][other]. Some [link](https://example.com).
 
 ## Options
 
-- [`task-tags`][task-tags]
-- [`mccabe.max-complexity`][mccabe.max-complexity]
+- [`lint.task-tags`][lint.task-tags]
+- [`lint.mccabe.max-complexity`][lint.mccabe.max-complexity]
 
 [other]: http://example.com.
 
-[task-tags]: ../../settings#task-tags
-[mccabe.max-complexity]: ../../settings#mccabe-max-complexity
+[lint.task-tags]: ../settings.md#lint_task-tags
+[lint.mccabe.max-complexity]: ../settings.md#lint_mccabe_max-complexity
 "
         );
     }

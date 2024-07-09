@@ -30,6 +30,7 @@ export function setupMonaco(monaco: Monaco) {
   defineFirLanguage(monaco);
   defineRustPythonTokensLanguage(monaco);
   defineRustPythonAstLanguage(monaco);
+  defineCommentsLanguage(monaco);
 }
 
 function defineAyuThemes(monaco: Monaco) {
@@ -620,6 +621,62 @@ function defineRustPythonAstLanguage(monaco: Monaco) {
   });
 }
 
+// Modeled after 'RustPythonAst'
+function defineCommentsLanguage(monaco: Monaco) {
+  monaco.languages.register({
+    id: "Comments",
+  });
+
+  monaco.languages.setMonarchTokensProvider("Comments", {
+    keywords: ["None", "Err"],
+    tokenizer: {
+      root: [
+        [
+          /[a-zA-Z_$][\w$]*/,
+          {
+            cases: {
+              "@keywords": "keyword",
+              "@default": "identifier",
+            },
+          },
+        ],
+
+        // Whitespace
+        [/[ \t\r\n]+/, "white"],
+
+        // Strings
+        [/"/, { token: "string.quote", bracket: "@open", next: "@string" }],
+
+        [/\d+/, "number"],
+
+        [/[{}()[\]]/, "@brackets"],
+      ],
+      string: [
+        [/[^\\"]+/, "string"],
+        [/\\[\\"]/, "string.escape"],
+        [/"/, { token: "string.quote", bracket: "@close", next: "@pop" }],
+      ],
+    },
+    brackets: [
+      {
+        open: "(",
+        close: ")",
+        token: "delimiter.parenthesis",
+      },
+      {
+        open: "{",
+        close: "}",
+        token: "delimiter.curly",
+      },
+      {
+        open: "[",
+        close: "]",
+        token: "delimiter.bracket",
+      },
+    ],
+  });
+}
+
 function defineRustPythonTokensLanguage(monaco: Monaco) {
   monaco.languages.register({
     id: "RustPythonTokens",
@@ -688,7 +745,7 @@ function defineFirLanguage(monaco: Monaco) {
         // Whitespace
         [/[ \t\r\n]+/, "white"],
 
-        [/[{}()[\]<>]/, "@brackets"],
+        [/[()[\]<>]/, "@brackets"],
 
         // Strings
         [/"/, { token: "string.quote", bracket: "@open", next: "@string" }],

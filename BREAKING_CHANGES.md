@@ -1,5 +1,145 @@
 # Breaking Changes
 
+## 0.5.0
+
+- Follow the XDG specification to discover user-level configurations on macOS (same as on other Unix platforms)
+- Selecting `ALL` now excludes deprecated rules
+- The released archives now include an extra level of nesting, which can be removed with `--strip-components=1` when untarring.
+- The release artifact's file name no longer includes the version tag. This enables users to install via `/latest` URLs on GitHub.
+
+## 0.3.0
+
+### Ruff 2024.2 style
+
+The formatter now formats code according to the Ruff 2024.2 style guide. Read the [changelog](./CHANGELOG.md#030) for a detailed list of stabilized style changes.
+
+### `isort`: Use one blank line after imports in typing stub files ([#9971](https://github.com/astral-sh/ruff/pull/9971))
+
+Previously, Ruff used one or two blank lines (or the number configured by `isort.lines-after-imports`) after imports in typing stub files (`.pyi` files).
+The [typing style guide for stubs](https://typing.readthedocs.io/en/latest/source/stubs.html#style-guide) recommends using at most 1 blank line for grouping.
+As of this release, `isort` now always uses one blank line after imports in stub files, the same as the formatter.
+
+### `build` is no longer excluded by default ([#10093](https://github.com/astral-sh/ruff/pull/10093))
+
+Ruff maintains a list of directories and files that are excluded by default. This list now consists of the following patterns:
+
+- `.bzr`
+- `.direnv`
+- `.eggs`
+- `.git`
+- `.git-rewrite`
+- `.hg`
+- `.ipynb_checkpoints`
+- `.mypy_cache`
+- `.nox`
+- `.pants.d`
+- `.pyenv`
+- `.pytest_cache`
+- `.pytype`
+- `.ruff_cache`
+- `.svn`
+- `.tox`
+- `.venv`
+- `.vscode`
+- `__pypackages__`
+- `_build`
+- `buck-out`
+- `dist`
+- `node_modules`
+- `site-packages`
+- `venv`
+
+Previously, the `build` directory was included in this list. However, the `build` directory tends to be a not-unpopular directory
+name, and excluding it by default caused confusion. Ruff now no longer excludes `build` except if it is excluded by a `.gitignore` file
+or because it is listed in `extend-exclude`.
+
+### `--format` is no longer a valid `rule` or `linter` command option
+
+Previously, `ruff rule` and `ruff linter` accepted the `--format <FORMAT>` option as an alias for `--output-format`. Ruff no longer
+supports this alias. Please use `ruff rule --output-format <FORMAT>` and `ruff linter --output-format <FORMAT>` instead.
+
+## 0.1.9
+
+### `site-packages` is now excluded by default ([#5513](https://github.com/astral-sh/ruff/pull/5513))
+
+Ruff maintains a list of default exclusions, which now consists of the following patterns:
+
+- `.bzr`
+- `.direnv`
+- `.eggs`
+- `.git-rewrite`
+- `.git`
+- `.hg`
+- `.ipynb_checkpoints`
+- `.mypy_cache`
+- `.nox`
+- `.pants.d`
+- `.pyenv`
+- `.pytest_cache`
+- `.pytype`
+- `.ruff_cache`
+- `.svn`
+- `.tox`
+- `.venv`
+- `.vscode`
+- `__pypackages__`
+- `_build`
+- `buck-out`
+- `build`
+- `dist`
+- `node_modules`
+- `site-packages`
+- `venv`
+
+Previously, the `site-packages` directory was not excluded by default. While `site-packages` tends
+to be excluded anyway by virtue of the `.venv` exclusion, this may not be the case when using Ruff
+from VS Code outside a virtual environment.
+
+## 0.1.0
+
+### The deprecated `format` setting has been removed
+
+Ruff previously used the `format` setting, `--format` CLI option, and `RUFF_FORMAT` environment variable to
+configure the output format of the CLI. This usage was deprecated in `v0.0.291` — the `format` setting is now used
+to control Ruff's code formatting. As of this release:
+
+- The `format` setting cannot be used to configure the output format, use `output-format` instead
+- The `RUFF_FORMAT` environment variable is ignored, use `RUFF_OUTPUT_FORMAT` instead
+- The `--format` option has been removed from `ruff check`, use `--output-format` instead
+
+### Unsafe fixes are not applied by default ([#7769](https://github.com/astral-sh/ruff/pull/7769))
+
+Ruff labels fixes as "safe" and "unsafe". The meaning and intent of your code will be retained when applying safe
+fixes, but the meaning could be changed when applying unsafe fixes. Previously, unsafe fixes were always displayed
+and applied when fixing was enabled. Now, unsafe fixes are hidden by default and not applied. The `--unsafe-fixes`
+flag or `unsafe-fixes` configuration option can be used to enable unsafe fixes.
+
+See the [docs](https://docs.astral.sh/ruff/configuration/#fix-safety) for details.
+
+### Remove formatter-conflicting rules from the default rule set  ([#7900](https://github.com/astral-sh/ruff/pull/7900))
+
+Previously, Ruff enabled all implemented rules in Pycodestyle (`E`) by default. Ruff now only includes the
+Pycodestyle prefixes `E4`, `E7`, and `E9` to exclude rules that conflict with automatic formatters. Consequently,
+the stable rule set no longer includes `line-too-long` (`E501`) and `mixed-spaces-and-tabs` (`E101`). Other
+excluded Pycodestyle rules include whitespace enforcement in `E1` and `E2`; these rules are currently in preview, and are already omitted by default.
+
+This change only affects those using Ruff under its default rule set. Users that include `E` in their `select` will experience no change in behavior.
+
+## 0.0.288
+
+### Remove support for emoji identifiers ([#7212](https://github.com/astral-sh/ruff/pull/7212))
+
+Previously, Ruff supported the non-standard compliant emoji identifiers e.g. `📦 = 1`.
+We decided to remove this non-standard language extension, and Ruff now reports syntax errors for emoji identifiers in your code, the same as CPython.
+
+### Improved GitLab fingerprints ([#7203](https://github.com/astral-sh/ruff/pull/7203))
+
+GitLab uses fingerprints to identify new, existing, or fixed violations. Previously, Ruff included the violation's position in the fingerprint. Using the location has the downside that changing any code before the violation causes the fingerprint to change, resulting in GitLab reporting one fixed and one new violation even though it is a pre-existing violation.
+
+Ruff now uses a more stable location-agnostic fingerprint to minimize that existing violations incorrectly get marked as fixed and re-reported as new violations.
+
+Expect GitLab to report each pre-existing violation in your project as fixed and a new violation in your Ruff upgrade PR.
+
 ## 0.0.283 / 0.284
 
 ### The target Python version now defaults to 3.8 instead of 3.10 ([#6397](https://github.com/astral-sh/ruff/pull/6397))
@@ -284,4 +424,4 @@ default.
 `pyproject.toml` files are now resolved hierarchically, such that for each Python file, we find
 the first `pyproject.toml` file in its path, and use that to determine its lint settings.
 
-See the [documentation](https://beta.ruff.rs/docs/configuration/#python-file-discovery) for more.
+See the [documentation](https://docs.astral.sh/ruff/configuration/#python-file-discovery) for more.

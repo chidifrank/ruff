@@ -10,36 +10,46 @@ documentation = { workspace = true }
 repository = { workspace = true }
 license = { workspace = true }
 
+[lib]
+doctest = false
+
 [dependencies]
-ruff_formatter = { path = "../ruff_formatter" }
-ruff_python_trivia = { path = "../ruff_python_trivia" }
-ruff_source_file = { path = "../ruff_source_file" }
-ruff_python_ast = { path = "../ruff_python_ast" }
-ruff_python_index = { path = "../ruff_python_index" }
-ruff_python_parser = { path = "../ruff_python_parser" }
-ruff_text_size = { path = "../ruff_text_size" }
+ruff_cache = { workspace = true }
+ruff_formatter = { workspace = true }
+ruff_macros = { workspace = true }
+ruff_python_trivia = { workspace = true }
+ruff_source_file = { workspace = true }
+ruff_python_ast = { workspace = true }
+ruff_python_parser = { workspace = true }
+ruff_text_size = { workspace = true }
 
 anyhow = { workspace = true }
-bitflags = { workspace = true }
 clap = { workspace = true }
-countme = "3.0.1"
-is-macro = { workspace = true }
+countme = { workspace = true }
 itertools = { workspace = true }
 memchr = { workspace = true }
 once_cell = { workspace = true }
+regex = { workspace = true }
 rustc-hash = { workspace = true }
 serde = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
 smallvec = { workspace = true }
+static_assertions = { workspace = true }
 thiserror = { workspace = true }
-unicode-width = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
-ruff_formatter = { path = "../ruff_formatter", features = ["serde"] }
+ruff_formatter = { workspace = true }
 
 insta = { workspace = true, features = ["glob"] }
+regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 similar = { workspace = true }
+
+[package.metadata.cargo-shear]
+# Used via `CacheKey` macro expansion.
+ignored = ["ruff_cache"]
 
 [[test]]
 name = "ruff_python_formatter_fixtures"
@@ -48,5 +58,9 @@ test = true
 required-features = ["serde"]
 
 [features]
-serde = ["dep:serde", "ruff_formatter/serde", "ruff_source_file/serde", "ruff_python_ast/serde"]
 default = ["serde"]
+serde = ["dep:serde", "ruff_formatter/serde", "ruff_source_file/serde", "ruff_python_ast/serde"]
+schemars = ["dep:schemars", "ruff_formatter/schemars"]
+
+[lints]
+workspace = true

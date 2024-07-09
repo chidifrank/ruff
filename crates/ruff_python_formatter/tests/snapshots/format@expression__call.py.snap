@@ -3,7 +3,7 @@ source: crates/ruff_python_formatter/tests/fixtures.rs
 input_file: crates/ruff_python_formatter/resources/test/fixtures/ruff/expression/call.py
 ---
 ## Input
-```py
+```python
 from unittest.mock import MagicMock
 
 
@@ -85,6 +85,21 @@ f(
     **
     # oddly placed own line comment
     dict()
+)
+f(
+    session,
+    b=1,
+    **(# oddly placed own line comment
+    dict()
+    )
+)
+f(
+    session,
+    b=1,
+    **(
+        # oddly placed own line comment
+    dict()
+    )
 )
 
 # Don't add a magic trailing comma when there is only one entry
@@ -211,10 +226,63 @@ aaa = (
     ()
     .bbbbbbbbbbbbbbbb
 )
+
+# Comments around keywords
+f(x= # comment
+  1)
+
+f(x # comment
+ =
+  1)
+
+f(x=
+  # comment
+  1)
+
+f(x=(# comment
+  1
+))
+
+
+f(x=(
+  # comment
+  1
+))
+
+args = [2]
+args2 = [3]
+kwargs = {"4": 5}
+
+# https://github.com/astral-sh/ruff/issues/6498
+f(a=1, *args, **kwargs)
+f(*args, a=1, **kwargs)
+f(*args, a=1, *args2, **kwargs)
+f(  # a
+    *  # b
+    args
+    # c
+    ,  # d
+    a=1,
+    # e
+    *  # f
+    args2
+    # g
+    **  # h
+    kwargs,
+)
+
+# Regression test for: https://github.com/astral-sh/ruff/issues/7370
+result = (
+    f(111111111111111111111111111111111111111111111111111111111111111111111111111111111)
+    + 1
+)()
+
+
+result = (object[complicate_caller])("argument").a["b"].test(argument)
 ```
 
 ## Output
-```py
+```python
 from unittest.mock import MagicMock
 
 
@@ -288,13 +356,29 @@ f("aaaaaaaa", "aaaaaaaa", "aaaaaaaa", "aaaaaaaa", "aaaaaaaa", "aaaaaaaa", "aaaaa
 f(
     session,
     b=1,
-    **dict(),  # oddly placed end-of-line comment
+    # oddly placed end-of-line comment
+    **dict(),
 )
 f(
     session,
     b=1,
-    **dict(),
     # oddly placed own line comment
+    **dict(),
+)
+f(
+    session,
+    b=1,
+    **(  # oddly placed own line comment
+        dict()
+    ),
+)
+f(
+    session,
+    b=1,
+    **(
+        # oddly placed own line comment
+        dict()
+    ),
 )
 
 # Don't add a magic trailing comma when there is only one entry
@@ -333,10 +417,10 @@ threshold_date = datetime.datetime.now() - datetime.timedelta(  # comment
 )
 
 # Parenthesized and opening-parenthesis comments
-func(x for x in y)
+func((x for x in y))
 
 func(  # outer comment
-    x for x in y
+    (x for x in y)
 )
 
 func(
@@ -346,9 +430,11 @@ func(
 )
 
 func(
-    # inner comment
-    x
-    for x in y
+    (
+        # inner comment
+        x
+        for x in y
+    )
 )
 
 func(  # outer comment
@@ -372,8 +458,9 @@ func(
 )
 
 func(
-    # outer comment
-    (  # inner comment
+    (
+        # outer comment
+        # inner comment
         []
     )
 )
@@ -408,6 +495,66 @@ aaa = (
     bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
     # awkward comment
 )().bbbbbbbbbbbbbbbb
+
+# Comments around keywords
+f(
+    # comment
+    x=1
+)
+
+f(
+    # comment
+    x=1
+)
+
+f(
+    # comment
+    x=1
+)
+
+f(
+    x=(  # comment
+        1
+    )
+)
+
+
+f(
+    x=(
+        # comment
+        1
+    )
+)
+
+args = [2]
+args2 = [3]
+kwargs = {"4": 5}
+
+# https://github.com/astral-sh/ruff/issues/6498
+f(a=1, *args, **kwargs)
+f(*args, a=1, **kwargs)
+f(*args, a=1, *args2, **kwargs)
+f(  # a
+    # b
+    *args,  # d
+    # c
+    a=1,
+    # e
+    # f
+    *args2
+    # g
+    **  # h
+    kwargs,
+)
+
+# Regression test for: https://github.com/astral-sh/ruff/issues/7370
+result = (
+    f(111111111111111111111111111111111111111111111111111111111111111111111111111111111)
+    + 1
+)()
+
+
+result = (object[complicate_caller])("argument").a["b"].test(argument)
 ```
 
 

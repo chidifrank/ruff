@@ -9,21 +9,41 @@ expression: parse_ast
             value: FString(
                 ExprFString {
                     range: 0..17,
-                    values: [
-                        Constant(
-                            ExprConstant {
-                                range: 1..16,
-                                value: Str(
-                                    StringConstant {
-                                        value: "Hello world",
-                                        implicit_concatenated: true,
+                    value: FStringValue {
+                        inner: Concatenated(
+                            [
+                                Literal(
+                                    StringLiteral {
+                                        range: 0..8,
+                                        value: "Hello ",
+                                        flags: StringLiteralFlags {
+                                            quote_style: Single,
+                                            prefix: Empty,
+                                            triple_quoted: false,
+                                        },
                                     },
                                 ),
-                                kind: None,
-                            },
+                                FString(
+                                    FString {
+                                        range: 9..17,
+                                        elements: [
+                                            Literal(
+                                                FStringLiteralElement {
+                                                    range: 11..16,
+                                                    value: "world",
+                                                },
+                                            ),
+                                        ],
+                                        flags: FStringFlags {
+                                            quote_style: Single,
+                                            prefix: Regular,
+                                            triple_quoted: false,
+                                        },
+                                    },
+                                ),
+                            ],
                         ),
-                    ],
-                    implicit_concatenated: true,
+                    },
                 },
             ),
         },

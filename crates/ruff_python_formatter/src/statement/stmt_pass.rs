@@ -1,15 +1,14 @@
-use crate::comments::{SourceComment, SuppressionKind};
 use ruff_python_ast::StmtPass;
 
-use crate::prelude::*;
-use crate::FormatNodeRule;
+use crate::comments::SourceComment;
+use crate::{has_skip_comment, prelude::*};
 
 #[derive(Default)]
 pub struct FormatStmtPass;
 
 impl FormatNodeRule<StmtPass> for FormatStmtPass {
     fn fmt_fields(&self, _item: &StmtPass, f: &mut PyFormatter) -> FormatResult<()> {
-        text("pass").fmt(f)
+        token("pass").fmt(f)
     }
 
     fn is_suppressed(
@@ -17,6 +16,6 @@ impl FormatNodeRule<StmtPass> for FormatStmtPass {
         trailing_comments: &[SourceComment],
         context: &PyFormatContext,
     ) -> bool {
-        SuppressionKind::has_skip_comment(trailing_comments, context.source())
+        has_skip_comment(trailing_comments, context.source())
     }
 }

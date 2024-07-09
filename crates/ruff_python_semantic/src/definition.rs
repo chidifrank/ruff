@@ -3,14 +3,16 @@
 
 use std::fmt::Debug;
 use std::ops::Deref;
+use std::path::Path;
 
 use ruff_index::{newtype_index, IndexSlice, IndexVec};
-use ruff_python_ast::{self as ast, Ranged, Stmt};
-use ruff_text_size::TextRange;
+use ruff_python_ast::{self as ast, Stmt};
+use ruff_text_size::{Ranged, TextRange};
 
 use crate::analyze::visibility::{
-    class_visibility, function_visibility, method_visibility, ModuleSource, Visibility,
+    class_visibility, function_visibility, method_visibility, module_visibility, Visibility,
 };
+use crate::model::all::DunderAllName;
 
 /// Id uniquely identifying a definition in a program.
 #[newtype_index]
@@ -24,7 +26,19 @@ impl DefinitionId {
     }
 }
 
-#[derive(Debug, is_macro::Is)]
+/// A Python module can either be defined as a module path (i.e., the dot-separated path to the
+/// module) or, if the module can't be resolved, as a file path (i.e., the path to the file defining
+/// the module).
+#[derive(Debug, Copy, Clone)]
+pub enum ModuleSource<'a> {
+    /// A module path is a dot-separated path to the module.
+    Path(&'a [String]),
+    /// A file path is the path to the file defining the module, often a script outside of a
+    /// package.
+    File(&'a Path),
+}
+
+#[derive(Debug, Copy, Clone, is_macro::Is)]
 pub enum ModuleKind {
     /// A Python file that represents a module within a package.
     Module,
@@ -33,15 +47,17 @@ pub enum ModuleKind {
 }
 
 /// A Python module.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Module<'a> {
     pub kind: ModuleKind,
     pub source: ModuleSource<'a>,
     pub python_ast: &'a [Stmt],
+    pub name: Option<&'a str>,
 }
 
 impl<'a> Module<'a> {
-    pub fn path(&self) -> Option<&'a [String]> {
+    /// Return the fully-qualified path of the module.
+    pub const fn qualified_name(&self) -> Option<&'a [String]> {
         if let ModuleSource::Path(path) = self.source {
             Some(path)
         } else {
@@ -50,11 +66,8 @@ impl<'a> Module<'a> {
     }
 
     /// Return the name of the module.
-    pub fn name(&self) -> Option<&'a str> {
-        match self.source {
-            ModuleSource::Path(path) => path.last().map(Deref::deref),
-            ModuleSource::File(file) => file.file_stem().and_then(std::ffi::OsStr::to_str),
-        }
+    pub const fn name(&self) -> Option<&'a str> {
+        self.name
     }
 }
 
@@ -81,7 +94,7 @@ pub struct Member<'a> {
 
 impl<'a> Member<'a> {
     /// Return the name of the member.
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &'a str {
         match self.kind {
             MemberKind::Class(class) => &class.name,
             MemberKind::NestedClass(class) => &class.name,
@@ -92,7 +105,7 @@ impl<'a> Member<'a> {
     }
 
     /// Return the body of the member.
-    pub fn body(&self) -> &[Stmt] {
+    pub fn body(&self) -> &'a [Stmt] {
         match self.kind {
             MemberKind::Class(class) => &class.body,
             MemberKind::NestedClass(class) => &class.body,
@@ -117,13 +130,13 @@ impl Ranged for Member<'_> {
 }
 
 /// A definition within a Python program.
-#[derive(Debug)]
+#[derive(Debug, is_macro::Is)]
 pub enum Definition<'a> {
     Module(Module<'a>),
     Member(Member<'a>),
 }
 
-impl Definition<'_> {
+impl<'a> Definition<'a> {
     /// Returns `true` if the [`Definition`] is a method definition.
     pub const fn is_method(&self) -> bool {
         matches!(
@@ -136,7 +149,7 @@ impl Definition<'_> {
     }
 
     /// Return the name of the definition.
-    pub fn name(&self) -> Option<&str> {
+    pub fn name(&self) -> Option<&'a str> {
         match self {
             Definition::Module(module) => module.name(),
             Definition::Member(member) => Some(member.name()),
@@ -144,7 +157,7 @@ impl Definition<'_> {
     }
 
     /// Return the [`ast::StmtFunctionDef`] of the definition, if it's a function definition.
-    pub fn as_function_def(&self) -> Option<&ast::StmtFunctionDef> {
+    pub fn as_function_def(&self) -> Option<&'a ast::StmtFunctionDef> {
         match self {
             Definition::Member(Member {
                 kind:
@@ -158,7 +171,7 @@ impl Definition<'_> {
     }
 
     /// Return the [`ast::StmtClassDef`] of the definition, if it's a class definition.
-    pub fn as_class_def(&self) -> Option<&ast::StmtClassDef> {
+    pub fn as_class_def(&self) -> Option<&'a ast::StmtClassDef> {
         match self {
             Definition::Member(Member {
                 kind: MemberKind::Class(class) | MemberKind::NestedClass(class),
@@ -187,7 +200,7 @@ impl<'a> Definitions<'a> {
     }
 
     /// Resolve the visibility of each definition in the collection.
-    pub fn resolve(self, exports: Option<&[&str]>) -> ContextualizedDefinitions<'a> {
+    pub fn resolve(self, exports: Option<&[DunderAllName]>) -> ContextualizedDefinitions<'a> {
         let mut definitions: IndexVec<DefinitionId, ContextualizedDefinition<'a>> =
             IndexVec::with_capacity(self.len());
 
@@ -196,12 +209,14 @@ impl<'a> Definitions<'a> {
             // visibility.
             let visibility = {
                 match &definition {
-                    Definition::Module(module) => module.source.to_visibility(),
+                    Definition::Module(module) => module_visibility(module),
                     Definition::Member(member) => match member.kind {
                         MemberKind::Class(class) => {
                             let parent = &definitions[member.parent];
                             if parent.visibility.is_private()
-                                || exports.is_some_and(|exports| !exports.contains(&member.name()))
+                                || exports.is_some_and(|exports| {
+                                    !exports.iter().any(|export| export.name() == member.name())
+                                })
                             {
                                 Visibility::Private
                             } else {
@@ -221,7 +236,9 @@ impl<'a> Definitions<'a> {
                         MemberKind::Function(function) => {
                             let parent = &definitions[member.parent];
                             if parent.visibility.is_private()
-                                || exports.is_some_and(|exports| !exports.contains(&member.name()))
+                                || exports.is_some_and(|exports| {
+                                    !exports.iter().any(|export| export.name() == member.name())
+                                })
                             {
                                 Visibility::Private
                             } else {
@@ -248,6 +265,12 @@ impl<'a> Definitions<'a> {
 
         ContextualizedDefinitions(definitions.raw)
     }
+
+    /// Returns a reference to the Python AST.
+    pub fn python_ast(&self) -> Option<&'a [Stmt]> {
+        let module = self[DefinitionId::module()].as_module()?;
+        Some(module.python_ast)
+    }
 }
 
 impl<'a> Deref for Definitions<'a> {
@@ -259,8 +282,8 @@ impl<'a> Deref for Definitions<'a> {
 }
 
 impl<'a> IntoIterator for Definitions<'a> {
-    type IntoIter = std::vec::IntoIter<Self::Item>;
     type Item = Definition<'a>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()

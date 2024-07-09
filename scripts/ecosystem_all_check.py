@@ -1,8 +1,9 @@
 """This is @konstin's scripts for checking an entire checkout of ~2.1k packages for
-panics, autofix errors and similar problems.
+panics, fix errors and similar problems.
 
 It's a less elaborate, more hacky version of check_ecosystem.py
 """
+
 from __future__ import annotations
 
 import json

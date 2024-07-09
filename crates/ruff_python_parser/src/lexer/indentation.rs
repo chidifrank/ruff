@@ -82,21 +82,41 @@ impl Indentation {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub(super) struct UnexpectedIndentation;
 
-// The indentations stack is used to keep track of the current indentation level
-// [See Indentation](docs.python.org/3/reference/lexical_analysis.html#indentation).
+/// The indentations stack is used to keep track of the current indentation level
+/// [See Indentation](docs.python.org/3/reference/lexical_analysis.html#indentation).
 #[derive(Debug, Clone, Default)]
 pub(super) struct Indentations {
     stack: Vec<Indentation>,
 }
 
 impl Indentations {
-    pub(super) fn push(&mut self, indent: Indentation) {
+    pub(super) fn indent(&mut self, indent: Indentation) {
         debug_assert_eq!(self.current().try_compare(indent), Ok(Ordering::Less));
 
         self.stack.push(indent);
     }
 
-    pub(super) fn pop(&mut self) -> Option<Indentation> {
+    /// Dedent one level to eventually reach `new_indentation`.
+    ///
+    /// Returns `Err` if the `new_indentation` is greater than the new current indentation level.
+    pub(super) fn dedent_one(
+        &mut self,
+        new_indentation: Indentation,
+    ) -> Result<Option<Indentation>, UnexpectedIndentation> {
+        let previous = self.dedent();
+
+        match new_indentation.try_compare(*self.current())? {
+            Ordering::Less | Ordering::Equal => Ok(previous),
+            // ```python
+            // if True:
+            //     pass
+            //   pass <- The indentation is greater than the expected indent of 0.
+            // ```
+            Ordering::Greater => Err(UnexpectedIndentation),
+        }
+    }
+
+    pub(super) fn dedent(&mut self) -> Option<Indentation> {
         self.stack.pop()
     }
 
@@ -104,7 +124,18 @@ impl Indentations {
         static ROOT: Indentation = Indentation::root();
         self.stack.last().unwrap_or(&ROOT)
     }
+
+    pub(crate) fn checkpoint(&self) -> IndentationsCheckpoint {
+        IndentationsCheckpoint(self.stack.clone())
+    }
+
+    pub(crate) fn rewind(&mut self, checkpoint: IndentationsCheckpoint) {
+        self.stack = checkpoint.0;
+    }
 }
+
+#[derive(Debug, Clone)]
+pub(crate) struct IndentationsCheckpoint(Vec<Indentation>);
 
 assert_eq_size!(Indentation, u64);
 

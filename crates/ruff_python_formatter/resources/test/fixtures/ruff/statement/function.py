@@ -278,6 +278,13 @@ def f42(
 ):
     pass
 
+# Regression test for https://github.com/astral-sh/ruff/issues/10281
+def f43(
+    __bar: str,
+    /,
+    **specifiers: typing.Any,  # noqa: ANN401
+) -> int:
+    return len(specifiers)
 
 # Check trailing commas are permitted in funcdef argument list.
 def f(a, ): pass
@@ -376,3 +383,56 @@ def f(  # first
 def this_is_unusual() -> (please := no): ...
 
 def this_is_unusual(x) -> (please := no): ...
+
+# Regression test for: https://github.com/astral-sh/ruff/issues/7465
+try:
+    def test():
+        pass
+    #comment
+except ImportError:
+    pass
+
+# https://github.com/astral-sh/ruff/issues/7603
+def default_arg_comments(
+    a: str = #a
+    "a",
+    b: str =
+    #b
+    "b",
+    c: str =( #c
+        "c"
+    ),
+    d: str =(
+        #d
+        "d"
+    )
+):
+    print(a, b, c, d)
+
+def default_arg_comments2(#
+        x: int#=
+        = #
+        #
+        123#
+        #
+):
+    print(x)
+
+def function_with_one_argument_and_a_positional_separator(
+    argument: str, /
+) -> ReallyReallyReallyReallyReallyReallyReallyReallyLongName:
+    pass
+
+def function_with_one_argument_and_a_keyword_separator(
+    *, argument: str
+) -> ReallyReallyReallyReallyReallyReallyReallyReallyLongName:
+    pass
+
+
+# PEP 646 introduced type var tuple in parameter annotation
+# https://peps.python.org/pep-0646/#change-2-args-as-a-typevartuple
+def function_with_variadic_generics(*args: *tuple[int]): ...
+def function_with_variadic_generics(*args: *tuple[int],): ...
+
+# Generic arguments (PEP 695)
+def func[T](lotsoflongargs: T, lotsoflongargs2: T, lotsoflongargs3: T, lotsoflongargs4: T, lotsoflongargs5: T) -> T: ...

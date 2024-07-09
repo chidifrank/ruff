@@ -5,11 +5,10 @@ expression: comments.debug(test_case.source_code)
 {
     Node {
         kind: ModModule,
-        range: 0..0,
-        source: ``,
+        range: 0..35,
+        source: `⏎`,
     }: {
-        "leading": [],
-        "dangling": [
+        "leading": [
             SourceComment {
                 text: "# Some comment",
                 position: OwnLine,
@@ -21,6 +20,7 @@ expression: comments.debug(test_case.source_code)
                 formatted: false,
             },
         ],
+        "dangling": [],
         "trailing": [],
     },
 }

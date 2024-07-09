@@ -1,11 +1,10 @@
-use std::path::Path;
-
 use ruff_python_ast::{self as ast, Decorator};
 
-use ruff_python_ast::call_path::{collect_call_path, CallPath};
 use ruff_python_ast::helpers::map_callable;
+use ruff_python_ast::name::{QualifiedName, UnqualifiedName};
 
 use crate::model::SemanticModel;
+use crate::{Module, ModuleSource};
 
 #[derive(Debug, Clone, Copy, is_macro::Is)]
 pub enum Visibility {
@@ -15,20 +14,16 @@ pub enum Visibility {
 
 /// Returns `true` if a function is a "static method".
 pub fn is_staticmethod(decorator_list: &[Decorator], semantic: &SemanticModel) -> bool {
-    decorator_list.iter().any(|decorator| {
-        semantic
-            .resolve_call_path(map_callable(&decorator.expression))
-            .is_some_and(|call_path| matches!(call_path.as_slice(), ["", "staticmethod"]))
-    })
+    decorator_list
+        .iter()
+        .any(|decorator| semantic.match_builtin_expr(&decorator.expression, "staticmethod"))
 }
 
 /// Returns `true` if a function is a "class method".
 pub fn is_classmethod(decorator_list: &[Decorator], semantic: &SemanticModel) -> bool {
-    decorator_list.iter().any(|decorator| {
-        semantic
-            .resolve_call_path(map_callable(&decorator.expression))
-            .is_some_and(|call_path| matches!(call_path.as_slice(), ["", "classmethod"]))
-    })
+    decorator_list
+        .iter()
+        .any(|decorator| semantic.match_builtin_expr(&decorator.expression, "classmethod"))
 }
 
 /// Returns `true` if a function definition is an `@overload`.
@@ -49,10 +44,10 @@ pub fn is_override(decorator_list: &[Decorator], semantic: &SemanticModel) -> bo
 pub fn is_abstract(decorator_list: &[Decorator], semantic: &SemanticModel) -> bool {
     decorator_list.iter().any(|decorator| {
         semantic
-            .resolve_call_path(map_callable(&decorator.expression))
-            .is_some_and(|call_path| {
+            .resolve_qualified_name(map_callable(&decorator.expression))
+            .is_some_and(|qualified_name| {
                 matches!(
-                    call_path.as_slice(),
+                    qualified_name.segments(),
                     [
                         "abc",
                         "abstractmethod"
@@ -70,19 +65,19 @@ pub fn is_abstract(decorator_list: &[Decorator], semantic: &SemanticModel) -> bo
 /// `@property`-like decorators.
 pub fn is_property(
     decorator_list: &[Decorator],
-    extra_properties: &[CallPath],
+    extra_properties: &[QualifiedName],
     semantic: &SemanticModel,
 ) -> bool {
     decorator_list.iter().any(|decorator| {
         semantic
-            .resolve_call_path(map_callable(&decorator.expression))
-            .is_some_and(|call_path| {
+            .resolve_qualified_name(map_callable(&decorator.expression))
+            .is_some_and(|qualified_name| {
                 matches!(
-                    call_path.as_slice(),
-                    ["", "property"] | ["functools", "cached_property"]
+                    qualified_name.segments(),
+                    ["" | "builtins", "property"] | ["functools", "cached_property"]
                 ) || extra_properties
                     .iter()
-                    .any(|extra_property| extra_property.as_slice() == call_path.as_slice())
+                    .any(|extra_property| extra_property.segments() == qualified_name.segments())
             })
     })
 }
@@ -121,7 +116,7 @@ pub fn is_test(name: &str) -> bool {
 
 /// Returns `true` if a module name indicates public visibility.
 fn is_public_module(module_name: &str) -> bool {
-    !module_name.starts_with('_') || (module_name.starts_with("__") && module_name.ends_with("__"))
+    !module_name.starts_with('_') || is_magic(module_name)
 }
 
 /// Returns `true` if a module name indicates private visibility.
@@ -138,44 +133,31 @@ fn stem(path: &str) -> &str {
     }
 }
 
-/// A Python module can either be defined as a module path (i.e., the dot-separated path to the
-/// module) or, if the module can't be resolved, as a file path (i.e., the path to the file defining
-/// the module).
-#[derive(Debug)]
-pub enum ModuleSource<'a> {
-    /// A module path is a dot-separated path to the module.
-    Path(&'a [String]),
-    /// A file path is the path to the file defining the module, often a script outside of a
-    /// package.
-    File(&'a Path),
-}
-
-impl ModuleSource<'_> {
-    /// Return the `Visibility` of the module.
-    pub(crate) fn to_visibility(&self) -> Visibility {
-        match self {
-            Self::Path(path) => {
-                if path.iter().any(|m| is_private_module(m)) {
+/// Infer the [`Visibility`] of a module from its path.
+pub(crate) fn module_visibility(module: &Module) -> Visibility {
+    match &module.source {
+        ModuleSource::Path(path) => {
+            if path.iter().any(|m| is_private_module(m)) {
+                return Visibility::Private;
+            }
+        }
+        ModuleSource::File(path) => {
+            // Check to see if the filename itself indicates private visibility.
+            // Ex) `_foo.py` (but not `__init__.py`)
+            let mut components = path.iter().rev();
+            if let Some(filename) = components.next() {
+                let module_name = filename.to_string_lossy();
+                let module_name = stem(&module_name);
+                if is_private_module(module_name) {
                     return Visibility::Private;
                 }
             }
-            Self::File(path) => {
-                // Check to see if the filename itself indicates private visibility.
-                // Ex) `_foo.py` (but not `__init__.py`)
-                let mut components = path.iter().rev();
-                if let Some(filename) = components.next() {
-                    let module_name = filename.to_string_lossy();
-                    let module_name = stem(&module_name);
-                    if is_private_module(module_name) {
-                        return Visibility::Private;
-                    }
-                }
-            }
         }
-        Visibility::Public
     }
+    Visibility::Public
 }
 
+/// Infer the [`Visibility`] of a function from its name.
 pub(crate) fn function_visibility(function: &ast::StmtFunctionDef) -> Visibility {
     if function.name.starts_with('_') {
         Visibility::Private
@@ -184,12 +166,13 @@ pub(crate) fn function_visibility(function: &ast::StmtFunctionDef) -> Visibility
     }
 }
 
-pub(crate) fn method_visibility(function: &ast::StmtFunctionDef) -> Visibility {
+/// Infer the [`Visibility`] of a method from its name and decorators.
+pub fn method_visibility(function: &ast::StmtFunctionDef) -> Visibility {
     // Is this a setter or deleter?
     if function.decorator_list.iter().any(|decorator| {
-        collect_call_path(&decorator.expression).is_some_and(|call_path| {
-            call_path.as_slice() == [function.name.as_str(), "setter"]
-                || call_path.as_slice() == [function.name.as_str(), "deleter"]
+        UnqualifiedName::from_expr(&decorator.expression).is_some_and(|name| {
+            name.segments() == [function.name.as_str(), "setter"]
+                || name.segments() == [function.name.as_str(), "deleter"]
         })
     }) {
         return Visibility::Private;
@@ -201,13 +184,14 @@ pub(crate) fn method_visibility(function: &ast::StmtFunctionDef) -> Visibility {
     }
 
     // Is this a magic method?
-    if function.name.starts_with("__") && function.name.ends_with("__") {
+    if is_magic(&function.name) {
         return Visibility::Public;
     }
 
     Visibility::Private
 }
 
+/// Infer the [`Visibility`] of a class from its name.
 pub(crate) fn class_visibility(class: &ast::StmtClassDef) -> Visibility {
     if class.name.starts_with('_') {
         Visibility::Private

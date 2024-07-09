@@ -1,6 +1,6 @@
 #! /usr/bin/python
 
-"""See Docs.md"""
+"""See CONTRIBUTING.md"""
 
 # %%
 
@@ -30,10 +30,20 @@ nodes_file = (
 node_lines = (
     nodes_file.split("pub enum AnyNode {")[1].split("}")[0].strip().splitlines()
 )
-nodes = [
-    node_line.split("(")[1].split(")")[0].split("::")[-1].split("<")[0]
-    for node_line in node_lines
-]
+nodes = []
+for node_line in node_lines:
+    node = node_line.split("(")[1].split(")")[0].split("::")[-1].split("<")[0]
+    # `FString` and `StringLiteral` has a custom implementation while the formatting for
+    # `FStringLiteralElement` and `FStringExpressionElement` are handled by the `FString`
+    # implementation.
+    if node in (
+        "FString",
+        "StringLiteral",
+        "FStringLiteralElement",
+        "FStringExpressionElement",
+    ):
+        continue
+    nodes.append(node)
 print(nodes)
 
 # %%
@@ -89,9 +99,10 @@ for group, group_nodes in nodes_grouped.items():
             continue
 
         code = f"""
-            use crate::{{verbatim_text, FormatNodeRule, PyFormatter}};
-            use ruff_formatter::{{write, Buffer, FormatResult}};
+            use ruff_formatter::write;
             use ruff_python_ast::{node};
+            use crate::verbatim_text;
+            use crate::prelude::*;
 
             #[derive(Default)]
             pub struct Format{node};

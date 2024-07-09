@@ -1,12 +1,14 @@
 use ruff_formatter::write;
-use ruff_python_ast::node::AstNode;
-use ruff_python_ast::{Ranged, StmtImportFrom};
+use ruff_python_ast::AstNode;
+use ruff_python_ast::StmtImportFrom;
+use ruff_text_size::Ranged;
 
 use crate::builders::{parenthesize_if_expands, PyFormatterExtensions, TrailingComma};
-use crate::comments::{SourceComment, SuppressionKind};
+use crate::comments::SourceComment;
 use crate::expression::parentheses::parenthesized;
+use crate::has_skip_comment;
+use crate::other::identifier::DotDelimitedIdentifier;
 use crate::prelude::*;
-use crate::FormatNodeRule;
 
 #[derive(Default)]
 pub struct FormatStmtImportFrom;
@@ -20,19 +22,20 @@ impl FormatNodeRule<StmtImportFrom> for FormatStmtImportFrom {
             range: _,
         } = item;
 
-        let level_str = level
-            .map(|level| ".".repeat(level.to_usize()))
-            .unwrap_or(String::default());
-
         write!(
             f,
             [
-                text("from"),
+                token("from"),
                 space(),
-                dynamic_text(&level_str, None),
-                module.as_ref().map(AsFormat::format),
+                format_with(|f| {
+                    for _ in 0..*level {
+                        token(".").fmt(f)?;
+                    }
+                    Ok(())
+                }),
+                module.as_ref().map(DotDelimitedIdentifier::new),
                 space(),
-                text("import"),
+                token("import"),
                 space(),
             ]
         )?;
@@ -40,7 +43,7 @@ impl FormatNodeRule<StmtImportFrom> for FormatStmtImportFrom {
         if let [name] = names.as_slice() {
             // star can't be surrounded by parentheses
             if name.name.as_str() == "*" {
-                return text("*").fmt(f);
+                return token("*").fmt(f);
             }
         }
 
@@ -70,20 +73,11 @@ impl FormatNodeRule<StmtImportFrom> for FormatStmtImportFrom {
         }
     }
 
-    fn fmt_dangling_comments(
-        &self,
-        _dangling_comments: &[SourceComment],
-        _f: &mut PyFormatter,
-    ) -> FormatResult<()> {
-        // Handled in `fmt_fields`
-        Ok(())
-    }
-
     fn is_suppressed(
         &self,
         trailing_comments: &[SourceComment],
         context: &PyFormatContext,
     ) -> bool {
-        SuppressionKind::has_skip_comment(trailing_comments, context.source())
+        has_skip_comment(trailing_comments, context.source())
     }
 }

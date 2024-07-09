@@ -1,11 +1,10 @@
-use ruff_formatter::{write, Buffer, FormatResult};
-use ruff_python_ast::node::AnyNodeRef;
+use ruff_formatter::write;
+use ruff_python_ast::AnyNodeRef;
 use ruff_python_ast::PatternMatchAs;
 
-use crate::comments::{dangling_comments, SourceComment};
+use crate::comments::dangling_comments;
 use crate::expression::parentheses::{NeedsParentheses, OptionalParentheses};
 use crate::prelude::*;
-use crate::{FormatNodeRule, PyFormatter};
 
 #[derive(Default)]
 pub struct FormatPatternMatchAs;
@@ -30,7 +29,7 @@ impl FormatNodeRule<PatternMatchAs> for FormatPatternMatchAs {
                     write!(f, [space()])?;
                 }
 
-                write!(f, [text("as")])?;
+                write!(f, [token("as")])?;
 
                 let trailing_as_comments = comments.dangling(item);
                 if trailing_as_comments.is_empty() {
@@ -46,16 +45,8 @@ impl FormatNodeRule<PatternMatchAs> for FormatPatternMatchAs {
             name.format().fmt(f)
         } else {
             debug_assert!(pattern.is_none());
-            text("_").fmt(f)
+            token("_").fmt(f)
         }
-    }
-
-    fn fmt_dangling_comments(
-        &self,
-        _dangling_comments: &[SourceComment],
-        _f: &mut PyFormatter,
-    ) -> FormatResult<()> {
-        Ok(())
     }
 }
 

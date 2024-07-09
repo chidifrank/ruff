@@ -2,51 +2,75 @@
 source: crates/ruff_python_parser/src/lexer.rs
 expression: lex_source(source)
 ---
+## Tokens
+```
 [
-    String {
-        value: "double",
-        kind: String,
-        triple_quoted: false,
-    },
-    String {
-        value: "single",
-        kind: String,
-        triple_quoted: false,
-    },
-    String {
-        value: "can\\'t",
-        kind: String,
-        triple_quoted: false,
-    },
-    String {
-        value: "\\\\\\\"",
-        kind: String,
-        triple_quoted: false,
-    },
-    String {
-        value: "\\t\\r\\n",
-        kind: String,
-        triple_quoted: false,
-    },
-    String {
-        value: "\\g",
-        kind: String,
-        triple_quoted: false,
-    },
-    String {
-        value: "raw\\'",
-        kind: RawString,
-        triple_quoted: false,
-    },
-    String {
-        value: "\\420",
-        kind: String,
-        triple_quoted: false,
-    },
-    String {
-        value: "\\200\\0a",
-        kind: String,
-        triple_quoted: false,
-    },
-    Newline,
+    (
+        String(
+            "double",
+        ),
+        0..8,
+        TokenFlags(
+            DOUBLE_QUOTES,
+        ),
+    ),
+    (
+        String(
+            "single",
+        ),
+        9..17,
+    ),
+    (
+        String(
+            "can\\'t",
+        ),
+        18..26,
+    ),
+    (
+        String(
+            "\\\\\\\"",
+        ),
+        27..33,
+        TokenFlags(
+            DOUBLE_QUOTES,
+        ),
+    ),
+    (
+        String(
+            "\\t\\r\\n",
+        ),
+        34..42,
+    ),
+    (
+        String(
+            "\\g",
+        ),
+        43..47,
+    ),
+    (
+        String(
+            "raw\\'",
+        ),
+        48..56,
+        TokenFlags(
+            RAW_STRING_LOWERCASE,
+        ),
+    ),
+    (
+        String(
+            "\\420",
+        ),
+        57..63,
+    ),
+    (
+        String(
+            "\\200\\0a",
+        ),
+        64..73,
+    ),
+    (
+        Newline,
+        73..73,
+    ),
 ]
+```

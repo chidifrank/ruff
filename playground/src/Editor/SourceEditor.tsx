@@ -39,7 +39,9 @@ export default function SourceEditor({
         startColumn: diagnostic.location.column,
         endLineNumber: diagnostic.end_location.row,
         endColumn: diagnostic.end_location.column,
-        message: `${diagnostic.code}: ${diagnostic.message}`,
+        message: diagnostic.code
+          ? `${diagnostic.code}: ${diagnostic.message}`
+          : diagnostic.message,
         severity: MarkerSeverity.Error,
         tags:
           diagnostic.code === "F401" || diagnostic.code === "F841"
@@ -51,7 +53,6 @@ export default function SourceEditor({
     const codeActionProvider = monaco?.languages.registerCodeActionProvider(
       "python",
       {
-        // @ts-expect-error: The type definition is wrong.
         provideCodeActions: function (model, position) {
           const actions = diagnostics
             .filter((check) => position.startLineNumber === check.location.row)
@@ -61,7 +62,7 @@ export default function SourceEditor({
                 ? check.fix.message
                   ? `${check.code}: ${check.fix.message}`
                   : `Fix ${check.code}`
-                : "Autofix",
+                : "Fix",
               id: `fix-${check.code}`,
               kind: "quickfix",
               edit: check.fix
@@ -69,7 +70,7 @@ export default function SourceEditor({
                     edits: check.fix.edits.map((edit) => ({
                       resource: model.uri,
                       versionId: model.getVersionId(),
-                      edit: {
+                      textEdit: {
                         range: {
                           startLineNumber: edit.location.row,
                           startColumn: edit.location.column,
@@ -108,6 +109,7 @@ export default function SourceEditor({
     <Editor
       beforeMount={handleMount}
       options={{
+        fixedOverflowWidgets: true,
         readOnly: false,
         minimap: { enabled: false },
         fontSize: 14,

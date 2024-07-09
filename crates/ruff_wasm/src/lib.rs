@@ -1,38 +1,34 @@
 use std::path::Path;
 
 use js_sys::Error;
-
-use ruff_python_parser::lexer::LexResult;
-use ruff_python_parser::{parse_tokens, Mode};
+use ruff_python_trivia::CommentRanges;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-use ruff::directives;
-use ruff::line_width::{LineLength, TabSize};
-use ruff::linter::{check_path, LinterResult};
-use ruff::registry::AsRule;
-use ruff::rules::{
-    flake8_annotations, flake8_bandit, flake8_bugbear, flake8_builtins, flake8_comprehensions,
-    flake8_copyright, flake8_errmsg, flake8_gettext, flake8_implicit_str_concat,
-    flake8_import_conventions, flake8_pytest_style, flake8_quotes, flake8_self,
-    flake8_tidy_imports, flake8_type_checking, flake8_unused_arguments, isort, mccabe, pep8_naming,
-    pycodestyle, pydocstyle, pyflakes, pylint, pyspark, pyupgrade,
-};
-use ruff::settings::configuration::Configuration;
-use ruff::settings::options::Options;
-use ruff::settings::types::PythonVersion;
-use ruff::settings::{defaults, flags, Settings};
-use ruff_python_ast::PySourceType;
+use ruff_formatter::printer::SourceMapGeneration;
+use ruff_formatter::{FormatResult, Formatted, IndentStyle};
+use ruff_linter::directives;
+use ruff_linter::line_width::{IndentWidth, LineLength};
+use ruff_linter::linter::check_path;
+use ruff_linter::registry::AsRule;
+use ruff_linter::settings::types::PythonVersion;
+use ruff_linter::settings::{flags, DEFAULT_SELECTORS, DUMMY_VARIABLE_RGX};
+use ruff_linter::source_kind::SourceKind;
+use ruff_python_ast::{Mod, PySourceType};
 use ruff_python_codegen::Stylist;
-use ruff_python_formatter::{format_module, format_node, PyFormatOptions};
-use ruff_python_index::{CommentRangesBuilder, Indexer};
-use ruff_python_parser::AsMode;
+use ruff_python_formatter::{format_module_ast, pretty_comments, PyFormatContext, QuoteStyle};
+use ruff_python_index::Indexer;
+use ruff_python_parser::{parse, parse_unchecked, parse_unchecked_source, Mode, Parsed};
 use ruff_source_file::{Locator, SourceLocation};
+use ruff_text_size::Ranged;
+use ruff_workspace::configuration::Configuration;
+use ruff_workspace::options::{FormatOptions, LintCommonOptions, LintOptions, Options};
+use ruff_workspace::Settings;
 
 #[wasm_bindgen(typescript_custom_section)]
 const TYPES: &'static str = r#"
 export interface Diagnostic {
-    code: string;
+    code: string | null;
     message: string;
     location: {
         row: number;
@@ -61,7 +57,7 @@ export interface Diagnostic {
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
 pub struct ExpandedMessage {
-    pub code: String,
+    pub code: Option<String>,
     pub message: String,
     pub location: SourceLocation,
     pub end_location: SourceLocation,
@@ -105,96 +101,55 @@ pub struct Workspace {
 #[wasm_bindgen]
 impl Workspace {
     pub fn version() -> String {
-        ruff::VERSION.to_string()
+        ruff_linter::VERSION.to_string()
     }
 
     #[wasm_bindgen(constructor)]
     pub fn new(options: JsValue) -> Result<Workspace, Error> {
         let options: Options = serde_wasm_bindgen::from_value(options).map_err(into_error)?;
         let configuration =
-            Configuration::from_options(options, Path::new(".")).map_err(into_error)?;
-        let settings =
-            Settings::from_configuration(configuration, Path::new(".")).map_err(into_error)?;
+            Configuration::from_options(options, Some(Path::new(".")), Path::new("."))
+                .map_err(into_error)?;
+        let settings = configuration
+            .into_settings(Path::new("."))
+            .map_err(into_error)?;
 
         Ok(Workspace { settings })
     }
 
-    #[wasm_bindgen(js_name=defaultSettings)]
+    #[wasm_bindgen(js_name = defaultSettings)]
     pub fn default_settings() -> Result<JsValue, Error> {
         serde_wasm_bindgen::to_value(&Options {
+            preview: Some(false),
+
             // Propagate defaults.
-            allowed_confusables: Some(Vec::default()),
             builtins: Some(Vec::default()),
-            dummy_variable_rgx: Some(defaults::DUMMY_VARIABLE_RGX.as_str().to_string()),
-            extend_fixable: Some(Vec::default()),
-            extend_ignore: Some(Vec::default()),
-            extend_select: Some(Vec::default()),
-            extend_unfixable: Some(Vec::default()),
-            external: Some(Vec::default()),
-            ignore: Some(Vec::default()),
+
             line_length: Some(LineLength::default()),
-            select: Some(defaults::PREFIXES.to_vec()),
-            tab_size: Some(TabSize::default()),
+
+            indent_width: Some(IndentWidth::default()),
             target_version: Some(PythonVersion::default()),
-            // Ignore a bunch of options that don't make sense in a single-file editor.
-            cache_dir: None,
-            exclude: None,
-            extend: None,
-            extend_exclude: None,
-            extend_include: None,
-            extend_per_file_ignores: None,
-            fix: None,
-            fix_only: None,
-            fixable: None,
-            force_exclude: None,
-            format: None,
-            ignore_init_module_imports: None,
-            include: None,
-            logger_objects: None,
-            namespace_packages: None,
-            per_file_ignores: None,
-            required_version: None,
-            respect_gitignore: None,
-            show_fixes: None,
-            show_source: None,
-            src: None,
-            task_tags: None,
-            typing_modules: None,
-            unfixable: None,
-            // Use default options for all plugins.
-            flake8_annotations: Some(flake8_annotations::settings::Settings::default().into()),
-            flake8_bandit: Some(flake8_bandit::settings::Settings::default().into()),
-            flake8_bugbear: Some(flake8_bugbear::settings::Settings::default().into()),
-            flake8_builtins: Some(flake8_builtins::settings::Settings::default().into()),
-            flake8_comprehensions: Some(
-                flake8_comprehensions::settings::Settings::default().into(),
-            ),
-            flake8_copyright: Some(flake8_copyright::settings::Settings::default().into()),
-            flake8_errmsg: Some(flake8_errmsg::settings::Settings::default().into()),
-            flake8_gettext: Some(flake8_gettext::settings::Settings::default().into()),
-            flake8_implicit_str_concat: Some(
-                flake8_implicit_str_concat::settings::Settings::default().into(),
-            ),
-            flake8_import_conventions: Some(
-                flake8_import_conventions::settings::Settings::default().into(),
-            ),
-            flake8_pytest_style: Some(flake8_pytest_style::settings::Settings::default().into()),
-            flake8_quotes: Some(flake8_quotes::settings::Settings::default().into()),
-            flake8_self: Some(flake8_self::settings::Settings::default().into()),
-            flake8_tidy_imports: Some(flake8_tidy_imports::settings::Settings::default().into()),
-            flake8_type_checking: Some(flake8_type_checking::settings::Settings::default().into()),
-            flake8_unused_arguments: Some(
-                flake8_unused_arguments::settings::Settings::default().into(),
-            ),
-            isort: Some(isort::settings::Settings::default().into()),
-            mccabe: Some(mccabe::settings::Settings::default().into()),
-            pyspark: Some(pyspark::settings::Settings::default().into()),
-            pep8_naming: Some(pep8_naming::settings::Settings::default().into()),
-            pycodestyle: Some(pycodestyle::settings::Settings::default().into()),
-            pydocstyle: Some(pydocstyle::settings::Settings::default().into()),
-            pyflakes: Some(pyflakes::settings::Settings::default().into()),
-            pylint: Some(pylint::settings::Settings::default().into()),
-            pyupgrade: Some(pyupgrade::settings::Settings::default().into()),
+
+            lint: Some(LintOptions {
+                common: LintCommonOptions {
+                    allowed_confusables: Some(Vec::default()),
+                    dummy_variable_rgx: Some(DUMMY_VARIABLE_RGX.as_str().to_string()),
+                    ignore: Some(Vec::default()),
+                    select: Some(DEFAULT_SELECTORS.to_vec()),
+                    extend_fixable: Some(Vec::default()),
+                    extend_select: Some(Vec::default()),
+                    external: Some(Vec::default()),
+                    ..LintCommonOptions::default()
+                },
+
+                ..LintOptions::default()
+            }),
+            format: Some(FormatOptions {
+                indent_style: Some(IndentStyle::Space),
+                quote_style: Some(QuoteStyle::Double),
+                ..FormatOptions::default()
+            }),
+            ..Options::default()
         })
         .map_err(into_error)
     }
@@ -202,55 +157,59 @@ impl Workspace {
     pub fn check(&self, contents: &str) -> Result<JsValue, Error> {
         let source_type = PySourceType::default();
 
-        // Tokenize once.
-        let tokens: Vec<LexResult> = ruff_python_parser::tokenize(contents, source_type.as_mode());
+        // TODO(dhruvmanila): Support Jupyter Notebooks
+        let source_kind = SourceKind::Python(contents.to_string());
+
+        // Parse once.
+        let parsed = parse_unchecked_source(source_kind.source_code(), source_type);
 
         // Map row and column locations to byte slices (lazily).
         let locator = Locator::new(contents);
 
         // Detect the current code style (lazily).
-        let stylist = Stylist::from_tokens(&tokens, &locator);
+        let stylist = Stylist::from_tokens(parsed.tokens(), &locator);
 
         // Extra indices from the code.
-        let indexer = Indexer::from_tokens(&tokens, &locator);
+        let indexer = Indexer::from_tokens(parsed.tokens(), &locator);
 
         // Extract the `# noqa` and `# isort: skip` directives from the source.
-        let directives =
-            directives::extract_directives(&tokens, directives::Flags::empty(), &locator, &indexer);
+        let directives = directives::extract_directives(
+            parsed.tokens(),
+            directives::Flags::empty(),
+            &locator,
+            &indexer,
+        );
 
         // Generate checks.
-        let LinterResult {
-            data: (diagnostics, _imports),
-            ..
-        } = check_path(
+        let diagnostics = check_path(
             Path::new("<filename>"),
             None,
-            tokens,
             &locator,
             &stylist,
             &indexer,
             &directives,
-            &self.settings,
+            &self.settings.linter,
             flags::Noqa::Enabled,
-            None,
+            &source_kind,
             source_type,
+            &parsed,
         );
 
         let source_code = locator.to_source_code();
 
         let messages: Vec<ExpandedMessage> = diagnostics
             .into_iter()
-            .map(|message| {
-                let start_location = source_code.source_location(message.start());
-                let end_location = source_code.source_location(message.end());
+            .map(|diagnostic| {
+                let start_location = source_code.source_location(diagnostic.start());
+                let end_location = source_code.source_location(diagnostic.end());
 
                 ExpandedMessage {
-                    code: message.kind.rule().noqa_code().to_string(),
-                    message: message.kind.body,
+                    code: Some(diagnostic.kind.rule().noqa_code().to_string()),
+                    message: diagnostic.kind.body,
                     location: start_location,
                     end_location,
-                    fix: message.fix.map(|fix| ExpandedFix {
-                        message: message.kind.suggestion,
+                    fix: diagnostic.fix.map(|fix| ExpandedFix {
+                        message: diagnostic.kind.suggestion,
                         edits: fix
                             .edits()
                             .iter()
@@ -263,52 +222,92 @@ impl Workspace {
                     }),
                 }
             })
+            .chain(parsed.errors().iter().map(|parse_error| {
+                let start_location = source_code.source_location(parse_error.location.start());
+                let end_location = source_code.source_location(parse_error.location.end());
+
+                ExpandedMessage {
+                    code: None,
+                    message: format!("SyntaxError: {}", parse_error.error),
+                    location: start_location,
+                    end_location,
+                    fix: None,
+                }
+            }))
             .collect();
 
         serde_wasm_bindgen::to_value(&messages).map_err(into_error)
     }
 
     pub fn format(&self, contents: &str) -> Result<String, Error> {
-        // TODO(konstin): Add an options for py/pyi to the UI (1/2)
-        let options = PyFormatOptions::from_source_type(PySourceType::default());
-        let printed = format_module(contents, options).map_err(into_error)?;
+        let parsed = ParsedModule::from_source(contents)?;
+        let formatted = parsed.format(&self.settings).map_err(into_error)?;
+        let printed = formatted.print().map_err(into_error)?;
 
         Ok(printed.into_code())
     }
 
     pub fn format_ir(&self, contents: &str) -> Result<String, Error> {
-        let tokens: Vec<_> = ruff_python_parser::lexer::lex(contents, Mode::Module).collect();
-        let mut comment_ranges = CommentRangesBuilder::default();
-
-        for (token, range) in tokens.iter().flatten() {
-            comment_ranges.visit_token(token, *range);
-        }
-
-        let comment_ranges = comment_ranges.finish();
-        let module = parse_tokens(tokens, Mode::Module, ".").map_err(into_error)?;
-
-        // TODO(konstin): Add an options for py/pyi to the UI (2/2)
-        let options = PyFormatOptions::from_source_type(PySourceType::default());
-        let formatted =
-            format_node(&module, &comment_ranges, contents, options).map_err(into_error)?;
+        let parsed = ParsedModule::from_source(contents)?;
+        let formatted = parsed.format(&self.settings).map_err(into_error)?;
 
         Ok(format!("{formatted}"))
     }
 
+    pub fn comments(&self, contents: &str) -> Result<String, Error> {
+        let parsed = ParsedModule::from_source(contents)?;
+        let comment_ranges = CommentRanges::from(parsed.parsed.tokens());
+        let comments = pretty_comments(parsed.parsed.syntax(), &comment_ranges, contents);
+        Ok(comments)
+    }
+
     /// Parses the content and returns its AST
     pub fn parse(&self, contents: &str) -> Result<String, Error> {
-        let parsed = ruff_python_parser::parse(contents, Mode::Module, ".").map_err(into_error)?;
+        let parsed = parse_unchecked(contents, Mode::Module);
 
-        Ok(format!("{parsed:#?}"))
+        Ok(format!("{:#?}", parsed.into_syntax()))
     }
 
     pub fn tokens(&self, contents: &str) -> Result<String, Error> {
-        let tokens: Vec<_> = ruff_python_parser::lexer::lex(contents, Mode::Module).collect();
+        let parsed = parse_unchecked(contents, Mode::Module);
 
-        Ok(format!("{tokens:#?}"))
+        Ok(format!("{:#?}", parsed.tokens().as_ref()))
     }
 }
 
 pub(crate) fn into_error<E: std::fmt::Display>(err: E) -> Error {
     Error::new(&err.to_string())
+}
+
+struct ParsedModule<'a> {
+    source_code: &'a str,
+    parsed: Parsed<Mod>,
+    comment_ranges: CommentRanges,
+}
+
+impl<'a> ParsedModule<'a> {
+    fn from_source(source_code: &'a str) -> Result<Self, Error> {
+        let parsed = parse(source_code, Mode::Module).map_err(into_error)?;
+        let comment_ranges = CommentRanges::from(parsed.tokens());
+        Ok(Self {
+            source_code,
+            parsed,
+            comment_ranges,
+        })
+    }
+
+    fn format(&self, settings: &Settings) -> FormatResult<Formatted<PyFormatContext>> {
+        // TODO(konstin): Add an options for py/pyi to the UI (2/2)
+        let options = settings
+            .formatter
+            .to_format_options(PySourceType::default(), self.source_code)
+            .with_source_map_generation(SourceMapGeneration::Enabled);
+
+        format_module_ast(
+            &self.parsed,
+            &self.comment_ranges,
+            self.source_code,
+            options,
+        )
+    }
 }

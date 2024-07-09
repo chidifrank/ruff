@@ -1,9 +1,0 @@
-pub(crate) mod add_noqa;
-pub(crate) mod clean;
-pub(crate) mod config;
-pub(crate) mod linter;
-pub(crate) mod rule;
-pub(crate) mod run;
-pub(crate) mod run_stdin;
-pub(crate) mod show_files;
-pub(crate) mod show_settings;
