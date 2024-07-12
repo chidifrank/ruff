@@ -15,13 +15,13 @@ mod tests {
     use crate::test::test_path;
     use crate::{assert_messages, settings};
 
-    #[test_case(Rule::TrioTimeoutWithoutAwait, Path::new("ASYNC100.py"))]
+    #[test_case(Rule::CancelScopeNoCheckpoint, Path::new("ASYNC100.py"))]
     #[test_case(Rule::TrioSyncCall, Path::new("ASYNC105.py"))]
     #[test_case(Rule::AsyncFunctionWithTimeout, Path::new("ASYNC109_0.py"))]
     #[test_case(Rule::AsyncFunctionWithTimeout, Path::new("ASYNC109_1.py"))]
-    #[test_case(Rule::TrioUnneededSleep, Path::new("ASYNC110.py"))]
-    #[test_case(Rule::TrioZeroSleepCall, Path::new("ASYNC115.py"))]
-    #[test_case(Rule::SleepForeverCall, Path::new("ASYNC116.py"))]
+    #[test_case(Rule::AsyncBusyWait, Path::new("ASYNC110.py"))]
+    #[test_case(Rule::AsyncZeroSleep, Path::new("ASYNC115.py"))]
+    #[test_case(Rule::LongSleepNotForever, Path::new("ASYNC116.py"))]
     #[test_case(Rule::BlockingHttpCallInAsyncFunction, Path::new("ASYNC210.py"))]
     #[test_case(Rule::CreateSubprocessInAsyncFunction, Path::new("ASYNC22x.py"))]
     #[test_case(Rule::RunProcessInAsyncFunction, Path::new("ASYNC22x.py"))]
@@ -38,8 +38,12 @@ mod tests {
         Ok(())
     }
 
+    #[test_case(Rule::CancelScopeNoCheckpoint, Path::new("ASYNC100.py"))]
     #[test_case(Rule::AsyncFunctionWithTimeout, Path::new("ASYNC109_0.py"))]
     #[test_case(Rule::AsyncFunctionWithTimeout, Path::new("ASYNC109_1.py"))]
+    #[test_case(Rule::AsyncBusyWait, Path::new("ASYNC110.py"))]
+    #[test_case(Rule::AsyncZeroSleep, Path::new("ASYNC115.py"))]
+    #[test_case(Rule::LongSleepNotForever, Path::new("ASYNC116.py"))]
     fn preview_rules(rule_code: Rule, path: &Path) -> Result<()> {
         let snapshot = format!(
             "preview__{}_{}",
